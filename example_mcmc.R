@@ -96,15 +96,16 @@ obj <- MakeADFun(data = Data, parameters = Params, map = Map, random = c(),
 
 unique(names(obj$par)) # List of parameters that are "on"
 bnd <- get_bounds(obj = obj)
-check_bounds(opt = obj, lb = bnd$lb, ub = bnd$ub)
+check_bounds(opt = obj, lower = bnd$lower, upper = bnd$upper)
 
 # Optimize ----
 
-opt <- nlminb(start = obj$par, objective = obj$fn, gr = obj$gr, lower = bnd$lb, upper = bnd$ub)
+opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, 
+              lower = bnd$lower, upper = bnd$upper)
 
 # Run MCMC ----
 
-mcmc1 <- tmbstan(obj = obj, lower = bnd$lb, upper = bnd$ub, 
+mcmc1 <- tmbstan(obj = obj, lower = bnd$lower, upper = bnd$upper, 
                  init = rep(list(Params), 2), chains = 2, control = list(max_treedepth = 12))
 # mcmc2 <- tmbstan(obj = obj, lower = Lwr, upper = Upr, init = list(Params), chains = 1, laplace = TRUE)
 # get_stancode(mcmc1)
@@ -113,9 +114,11 @@ load("mcmc1.rda")
 
 # Run grid ----
 
-# M0 and M10 were free in MCMC, but fix for grid
-Map[["par_log_m0"]] <- NULL
-Map[["par_log_m10"]] <- NULL
+# M0 and M10 were free in MCMC, but here I fix for grid
+Map[["par_log_m0"]] <- factor(NA)
+Map[["par_log_m10"]] <- factor(NA)
+names(Map)
+
 Grid <- get_grid(par = Params)
 grd <- run_grid(data = Data, grid = Grid, bounds = bnd, map = Map)
 
@@ -138,3 +141,4 @@ plot_natural_mortality(data = Data, object = obj, posterior = mcmc1)
 
 # only this function has posterior and grid so far
 plot_biomass_spawning(data = Data, object = obj, grid = grd, posterior = mcmc1)
+ggsave(filename = "biomass_spawning_grid_mcmc.png", width = 7, height = 4)

@@ -98,11 +98,11 @@ obj <- MakeADFun(data = Data, parameters = Params, map = Map, random = Random,
 
 unique(names(obj$par)) # List of parameters that are "on"
 bnd <- get_bounds(obj = obj)
-check_bounds(opt = obj, lb = bnd$lb, ub = bnd$ub)
+check_bounds(opt = obj, lower = bnd$lower, upper = bnd$upper)
 
 newtonOption(obj = obj, smartsearch = TRUE)
 obj$fn(obj$par)
-obj$gr(obj$par)
+# obj$gr(obj$par)
 obj$control <- list(trace = 100)
 ConvergeTol <- 2 # 1:Normal; 2:Strong
 # obj$env$inner.control$step.tol <- c(1e-12, 1e-15)[ConvergeTol] # Default : 1e-8 # Change in parameters limit inner optimization
@@ -112,23 +112,44 @@ summary(obj)
 
 # Optimize ----
 
-# Hess <- optimHess(par = opt$par, fn = obj$fn)
-# opt <- nlminb(start = obj$par, objective = obj$fn, gr = obj$gr, upper = Upr, lower = Lwr, control = list(eval.max = 1e4, iter.max = 1e4, rel.tol = c(1e-10, 1e-8)[ConvergeTol], trace = 1))
-opt <- nlminb(start = obj$par, objective = obj$fn, gr = obj$gr, lower = bnd$lb, upper = bnd$ub)
+# Hess <- optimHess(par = obj$par, fn = obj$fn, gr = obj$gr)
+opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr,
+              lower = bnd$lower, upper = bnd$upper)
 # control = list(eval.max = 2e4, iter.max = 1e4, rel.tol = 1e-7, trace = 1))
+# opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, upper = Upr, lower = Lwr, control = list(eval.max = 1e4, iter.max = 1e4, rel.tol = c(1e-10, 1e-8)[ConvergeTol], trace = 1))
+
+# Inspect the Hessian ----
 
 opt[["final_gradient"]] <- obj$gr(opt$par)
 Diag <- obj$report()
 Report <- sdreport(obj)
 print(Report$pdHess) # Is the fit positive definite Hessian?
-check_bounds(opt = opt, lb = Lwr, ub = Upr)
-cbind(1:length(obj$par), Lwr, obj$par, Upr)
+
+check_bounds(opt = opt, lower = bnd$lower, upper = bnd$upper)
+cbind(1:length(obj$par), bnd$lower, obj$par, bnd$upper)
 plot_selectivity(data = Data, object = obj, posterior = NULL, years = 1931:1958)
 get_sel_list(data = Data, opt = opt)
 
-opt$hessian ## <-- FD hessian from optim
-he <- obj$he() ## <-- Analytical hessian
+opt$hessian # hessian from optim
+he <- obj$he() # analytical hessian
 he_inv <- solve(he)
 he_ch <- chol(he)
 ev <- eigen(he)
 range(ev$values)
+
+# Likelihood profile ----
+
+prof_B0 <- tmbprofile(obj = obj, name = "par_log_B0")
+plot(x = prof_B0)
+
+prof_m4 <- tmbprofile(obj = obj, name = "par_log_m4")
+plot(x = prof_m4)
+
+# prof_sd_weight <- tmbprofile(obj = obj, name = "par_log_m4", ystep = 0.01, parm.range = c(-5, 0))
+# plot(x = prof_sd_weight)
+# conf_sd_weight <- confint(object = prof_sd_weight)
+# plot(x = conf_sd_weight)
+# prof_sd_length <- tmbprofile(obj = obj, name = "log_sd_length", parm.range = c(-7, -1))
+# conf_sd_length <- confint(object = prof_sd_length)
+# plot(x = prof_sd_length)
+# plot(x = conf_sd_length)

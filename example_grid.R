@@ -96,16 +96,17 @@ obj <- MakeADFun(data = Data, parameters = Params, map = Map, random = Random,
 
 unique(names(obj$par)) # List of parameters that are "on"
 bnd <- get_bounds(obj = obj)
-check_bounds(opt = obj, lb = bnd$lb, ub = bnd$ub)
+check_bounds(opt = obj, lower = bnd$lower, upper = bnd$upper)
 
 # Optimize ----
 
-opt <- nlminb(start = obj$par, objective = obj$fn, gr = obj$gr, lower = bnd$lb, upper = bnd$ub)
+opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, 
+              lower = bnd$lower, upper = bnd$upper)
 
 # Run grid ----
 
 Grid <- get_grid(par = Params)
-grd <- run_grid(data = Data, parameters = Params, bounds = bnd, map = Map, grid = Grid)
+grd <- run_grid(data = Data, grid = Grid, bounds = bnd, map = Map)
 # save(grd, file = "grd.rda")
 # load("grd.rda")
 

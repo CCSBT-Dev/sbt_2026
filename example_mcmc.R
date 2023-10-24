@@ -68,9 +68,9 @@ Params <- list(par_log_B0 = data_par1$ln_B0,
 Map <- list()
 # Map[["par_log_B0"]] <- factor(NA) # est
 Map[["par_log_psi"]] <- factor(NA)
-Map[["par_log_m0"]] <- factor(NA)
+# Map[["par_log_m0"]] <- factor(NA)
 # Map[["par_log_m4"]] <- factor(NA) # est
-Map[["par_log_m10"]] <- factor(NA)
+# Map[["par_log_m10"]] <- factor(NA)
 # Map[["par_log_m30"]] <- factor(NA) # est
 Map[["par_log_h"]] <- factor(NA)
 Map[["par_log_sigma_r"]] <- factor(NA)
@@ -87,16 +87,14 @@ Map[["par_log_hsp_q"]] <- factor(NA)
 # Map[["par_logit_hstar_i"]] <- factor(rep(NA, 17)) # est
 Map[["par_log_tag_H_factor"]] <- factor(NA)
 
-# Specify the random effects
-Random <- c()
-
 # Create the AD object ----
 
-obj <- MakeADFun(data = Data, parameters = Params, map = Map, random = Random, 
+obj <- MakeADFun(data = Data, parameters = Params, map = Map, random = c(), 
                  hessian = TRUE, inner.control = list(maxit = 1000), DLL = "sbt")
 
-unique(names(obj$par)) # List of parameters that are "on"
+# Set up estimation ----
 
+unique(names(obj$par)) # List of parameters that are "on"
 bnd <- get_bounds(obj = obj)
 check_bounds(opt = obj, lb = bnd$lb, ub = bnd$ub)
 
@@ -106,16 +104,37 @@ opt <- nlminb(start = obj$par, objective = obj$fn, gr = obj$gr, lower = bnd$lb, 
 
 # Run MCMC ----
 
-mcmc1 <- tmbstan(obj = obj, lower = bnd$lb, upper = bnd$ub, init = list(Params), chains = 2)
-
-save(mcmc1, file = "mcmc1.rda")
+mcmc1 <- tmbstan(obj = obj, lower = bnd$lb, upper = bnd$ub, 
+                 init = rep(list(Params), 2), chains = 2, control = list(max_treedepth = 12))
+# mcmc2 <- tmbstan(obj = obj, lower = Lwr, upper = Upr, init = list(Params), chains = 1, laplace = TRUE)
+# get_stancode(mcmc1)
+save(obj, mcmc1, file = "mcmc1.rda")
 load("mcmc1.rda")
+
+# Run grid ----
+
+# M0 and M10 were free in MCMC, but fix for grid
+Map[["par_log_m0"]] <- NULL
+Map[["par_log_m10"]] <- NULL
+Grid <- get_grid(par = Params)
+grd <- run_grid(data = Data, grid = Grid, bounds = bnd, map = Map)
 
 # Plots ----
 
-pars <- c("lp__", "par_log_B0", "par_log_m4", "par_log_m30", "par_log_cpue_q", 
-          "par_rdev_y[1]", "par_rdev_y[92]", 
+pars <- c("lp__", "par_log_B0", 
+          "par_log_m0", "par_log_m10",
+          "par_log_m4", "par_log_m30", "par_log_cpue_q", 
+          "par_rdev_y[1]", "par_rdev_y[45]", "par_rdev_y[92]", 
+          "par_logit_hstar_i[1]", "par_logit_hstar_i[17]",
           "par_sels_init_i[1]", "par_sels_init_i[78]", 
           "par_sels_change_i[1]", "par_sels_change_i[1132]")
 
-traceplot(object = mcmc1, pars = pars, inc_warmup = FALSE)
+stan_trace(object = mcmc1, pars = pars)
+stan_hist(object = mcmc1, pars = pars)
+stan_dens(object = mcmc1, pars = pars)
+stan_plot(object = mcmc1, pars = "par_logit_hstar_i")
+
+plot_natural_mortality(data = Data, object = obj, posterior = mcmc1)
+
+# only this function has posterior and grid so far
+plot_biomass_spawning(data = Data, object = obj, grid = grd, posterior = mcmc1)

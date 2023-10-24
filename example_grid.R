@@ -92,8 +92,9 @@ Random <- c()
 obj <- MakeADFun(data = Data, parameters = Params, map = Map, random = Random, 
                  hessian = TRUE, inner.control = list(maxit = 1000), DLL = "sbt")
 
-unique(names(obj$par)) # List of parameters that are "on"
+# Set up estimation ----
 
+unique(names(obj$par)) # List of parameters that are "on"
 bnd <- get_bounds(obj = obj)
 check_bounds(opt = obj, lb = bnd$lb, ub = bnd$ub)
 
@@ -103,12 +104,12 @@ opt <- nlminb(start = obj$par, objective = obj$fn, gr = obj$gr, lower = bnd$lb, 
 
 # Run grid ----
 
-g_obj <- run_grid(Data = Data, Params = Params, Bounds = bnd, Map = Map, Random = Random)
-
-# save(g_obj, file = "g_obj.rda")
-# load("g_obj.rda")
+Grid <- get_grid(par = Params)
+grd <- run_grid(data = Data, parameters = Params, bounds = bnd, map = Map, grid = Grid)
+# save(grd, file = "grd.rda")
+# load("grd.rda")
 
 # Plot ----
 
-plot_biomass_spawning(data = Data, object = g_obj[[1]])
-plot_biomass_spawning(data = Data, object = g_obj[[1]], grid = g_obj)
+plot_biomass_spawning(data = Data, object = grd[[1]])
+plot_biomass_spawning(data = Data, object = grd[[1]], grid = grd)

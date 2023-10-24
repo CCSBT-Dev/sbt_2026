@@ -4,8 +4,11 @@ rm(list = ls())
 
 library(tidyverse)
 library(sbt)
+library(tmbstan)
 
 theme_set(theme_bw())
+
+options(mc.cores = parallel::detectCores()) # Specify the number of cores for MCMC
 
 # Create data list ----
 
@@ -101,14 +104,18 @@ check_bounds(opt = obj, lb = bnd$lb, ub = bnd$ub)
 
 opt <- nlminb(start = obj$par, objective = obj$fn, gr = obj$gr, lower = bnd$lb, upper = bnd$ub)
 
-# Run grid ----
+# Run MCMC ----
 
-g_obj <- run_grid(Data = Data, Params = Params, Bounds = bnd, Map = Map, Random = Random)
+mcmc1 <- tmbstan(obj = obj, lower = bnd$lb, upper = bnd$ub, init = list(Params), chains = 2)
 
-# save(g_obj, file = "g_obj.rda")
-# load("g_obj.rda")
+save(mcmc1, file = "mcmc1.rda")
+load("mcmc1.rda")
 
-# Plot ----
+# Plots ----
 
-plot_biomass_spawning(data = Data, object = g_obj[[1]])
-plot_biomass_spawning(data = Data, object = g_obj[[1]], grid = g_obj)
+pars <- c("lp__", "par_log_B0", "par_log_m4", "par_log_m30", "par_log_cpue_q", 
+          "par_rdev_y[1]", "par_rdev_y[92]", 
+          "par_sels_init_i[1]", "par_sels_init_i[78]", 
+          "par_sels_change_i[1]", "par_sels_change_i[1132]")
+
+traceplot(object = mcmc1, pars = pars, inc_warmup = FALSE)

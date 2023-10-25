@@ -112,9 +112,10 @@ summary(obj)
 
 # Optimize ----
 
-# Hess <- optimHess(par = obj$par, fn = obj$fn, gr = obj$gr)
 opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr,
-              lower = bnd$lower, upper = bnd$upper)
+              lower = bnd$lower, upper = bnd$upper,
+              control = list(eval.max = 1000,  # deaults to 200
+                             iter.max = 1000)) # deaults to 150
 # control = list(eval.max = 2e4, iter.max = 1e4, rel.tol = 1e-7, trace = 1))
 # opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, upper = Upr, lower = Lwr, control = list(eval.max = 1e4, iter.max = 1e4, rel.tol = c(1e-10, 1e-8)[ConvergeTol], trace = 1))
 
@@ -123,19 +124,21 @@ opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr,
 opt[["final_gradient"]] <- obj$gr(opt$par)
 Diag <- obj$report()
 Report <- sdreport(obj)
+
 print(Report$pdHess) # Is the fit positive definite Hessian?
-
-check_bounds(opt = opt, lower = bnd$lower, upper = bnd$upper)
-cbind(1:length(obj$par), bnd$lower, obj$par, bnd$upper)
-plot_selectivity(data = Data, object = obj, posterior = NULL, years = 1931:1958)
-get_sel_list(data = Data, opt = opt)
-
+# Hess <- optimHess(par = obj$par, fn = obj$fn, gr = obj$gr)
 opt$hessian # hessian from optim
 he <- obj$he() # analytical hessian
 he_inv <- solve(he)
 he_ch <- chol(he)
 ev <- eigen(he)
 range(ev$values)
+
+check_bounds(opt = opt, lower = bnd$lower, upper = bnd$upper)
+cbind(1:length(obj$par), bnd$lower, obj$par, bnd$upper)
+get_sel_list(data = Data, opt = opt)
+
+plot_selectivity(data = Data, object = obj, posterior = NULL, years = 1931:1958)
 
 # Likelihood profile ----
 

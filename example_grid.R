@@ -101,7 +101,8 @@ check_bounds(opt = obj, lower = bnd$lower, upper = bnd$upper)
 # Optimize ----
 
 opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, 
-              lower = bnd$lower, upper = bnd$upper)
+              lower = bnd$lower, upper = bnd$upper,
+              control = list(eval.max = 1000, iter.max = 1000))
 
 # Run grid ----
 
@@ -114,3 +115,4 @@ grd <- run_grid(data = Data, grid = Grid, bounds = bnd, map = Map)
 
 plot_biomass_spawning(data = Data, object = grd[[1]])
 plot_biomass_spawning(data = Data, object = grd[[1]], grid = grd)
+ggsave(filename = "biomass_spawning_grid.png", width = 7, height = 4)

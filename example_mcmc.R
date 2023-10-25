@@ -101,15 +101,15 @@ check_bounds(opt = obj, lower = bnd$lower, upper = bnd$upper)
 # Optimize ----
 
 opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, 
-              lower = bnd$lower, upper = bnd$upper)
+              lower = bnd$lower, upper = bnd$upper,
+              control = list(eval.max = 1000, iter.max = 1000))
 
 # Run MCMC ----
 
-mcmc1 <- tmbstan(obj = obj, lower = bnd$lower, upper = bnd$upper, 
-                 init = rep(list(Params), 2), chains = 2, control = list(max_treedepth = 12))
-# mcmc2 <- tmbstan(obj = obj, lower = Lwr, upper = Upr, init = list(Params), chains = 1, laplace = TRUE)
 # get_stancode(mcmc1)
-save(obj, mcmc1, file = "mcmc1.rda")
+# mcmc1 <- tmbstan(obj = obj, lower = bnd$lower, upper = bnd$upper, 
+#                  init = rep(list(Params), 2), chains = 2, control = list(max_treedepth = 12))
+# save(obj, mcmc1, file = "mcmc1.rda")
 load("mcmc1.rda")
 
 # Run grid ----

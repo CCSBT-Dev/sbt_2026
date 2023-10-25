@@ -108,15 +108,15 @@ opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr,
 
 # get_stancode(mcmc1)
 # mcmc1 <- tmbstan(obj = obj, lower = bnd$lower, upper = bnd$upper,
-#                  init = rep(list(Params), 2), chains = 2,
+#                  init = rep(list(Params), 2), chains = 2, 
 #                  control = list(max_treedepth = 12))
 # save(obj, mcmc1, file = "mcmc1.rda")
 load("mcmc1.rda")
 
 # Example of model averaging ----
 
-# loo1 <- get_loo(object = obj, posterior = mcmc1)
-# save(loo1, file = "loo1.rda")
+loo1 <- get_loo(object = obj, posterior = mcmc1)
+save(loo1, file = "loo1.rda")
 load("loo1.rda")
 print(loo1)
 plot_loo(x = loo1)

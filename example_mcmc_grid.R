@@ -41,27 +41,7 @@ Data <- get_data(data_in = Data1)
 
 # Create parameter list ----
 
-Params <- list(par_log_B0 = data_par1$ln_B0, 
-               par_log_psi = log(data_par1$psi),
-               par_log_m0 = log(data_par1$m0), 
-               par_log_m4 = log(data_par1$m4),
-               par_log_m10 = log(data_par1$m10), 
-               par_log_m30 = log(data_par1$m30),
-               par_log_h = log(data_par1$steep), 
-               par_log_sigma_r = log(data_labrep1$sigma.r),
-               par_rdev_y = data_par1$Reps,
-               par_sels_init_i = data_par1$par_sels_init_i,
-               par_sels_change_i = data_par1$par_sels_change_i,
-               par_log_cpue_q = data_par1$lnq,
-               par_log_cpue_sigma = log(data_par1$sigma_cpue),
-               par_log_cpue_omega = log(data_par1$cpue_omega),
-               par_log_aerial_tau = log(data_par1$tau_aerial),
-               par_log_aerial_sel = data_par1$ln_sel_aerial,
-               par_log_troll_tau = log(data_par1$tau_troll),
-               par_log_hsp_q = data_par1$lnqhsp, 
-               par_logit_hstar_i = qlogis(exp(data_par1$par_log_hstar_i)),
-               par_log_tag_H_factor = log(data_par1$tag_H_factor)
-)
+Params <- get_parameters()
 
 # Use TMB's Map option to turn parameters on/off ----
 
@@ -92,10 +72,13 @@ Map[["par_log_tag_H_factor"]] <- factor(NA)
 obj <- MakeADFun(data = Data, parameters = Params, map = Map, random = c(), 
                  hessian = TRUE, inner.control = list(maxit = 1000), DLL = "sbt")
 
+# Specify parameter bounds ----
+
+bnd <- get_bounds(obj = obj)
+
 # Set up estimation ----
 
 unique(names(obj$par)) # List of parameters that are "on"
-bnd <- get_bounds(obj = obj)
 check_bounds(opt = obj, lower = bnd$lower, upper = bnd$upper)
 
 # Optimize ----
@@ -106,22 +89,21 @@ opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr,
 
 # Run MCMC ----
 
-# get_stancode(mcmc1)
-# mcmc1 <- tmbstan(obj = obj, lower = bnd$lower, upper = bnd$upper,
-#                  init = rep(list(Params), 2), chains = 2, 
-#                  control = list(max_treedepth = 12))
-# save(obj, mcmc1, file = "mcmc1.rda")
-load("mcmc1.rda")
+mcmc_grd <- list()
 
-# Example of model averaging ----
+Params$par_log_h <- log(0.55)
+Params$par_log_psi <- log(1.5)
+mcmc_g1 <- tmbstan(obj = obj, lower = bnd$lower, upper = bnd$upper,
+                   init = rep(list(Params), 2), chains = 2,
+                   control = list(max_treedepth = 12))
+save(mcmc_g1, file = "mcmc_g1.rda")
 
-loo1 <- get_loo(object = obj, posterior = mcmc1)
-save(loo1, file = "loo1.rda")
-load("loo1.rda")
-print(loo1)
-plot_loo(x = loo1)
-loo::loo_model_weights(x = list(loo1, loo1))
-# mcmc2 <- sflist2stanfit(sflist = list(mcmc1, mcmc1))
+Params$par_log_h <- log(0.8)
+Params$par_log_psi <- log(2)
+mcmc_g2 <- tmbstan(obj = obj, lower = bnd$lower, upper = bnd$upper,
+                   init = rep(list(Params), 2), chains = 2,
+                   control = list(max_treedepth = 12))
+save(mcmc_g2, file = "mcmc_g2.rda")
 
 # Run grid ----
 

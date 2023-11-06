@@ -94,12 +94,14 @@ Random <- c()
 obj <- MakeADFun(data = Data, parameters = Params, map = Map, random = Random, 
                  hessian = TRUE, inner.control = list(maxit = 1000), DLL = "sbt")
 
+# Specify parameter bounds ----
+
+bnd <- get_bounds(obj = obj)
+
 # Set up estimation ----
 
 unique(names(obj$par)) # List of parameters that are "on"
-bnd <- get_bounds(obj = obj)
 check_bounds(opt = obj, lower = bnd$lower, upper = bnd$upper)
-
 newtonOption(obj = obj, smartsearch = TRUE)
 obj$fn(obj$par)
 # obj$gr(obj$par)
@@ -123,7 +125,7 @@ opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr,
 
 opt[["final_gradient"]] <- obj$gr(opt$par)
 Diag <- obj$report()
-Report <- sdreport(obj)
+Report <- sdreport(obj = obj)
 
 print(Report$pdHess) # Is the fit positive definite Hessian?
 # Hess <- optimHess(par = obj$par, fn = obj$fn, gr = obj$gr)
@@ -136,7 +138,7 @@ range(ev$values)
 
 check_bounds(opt = opt, lower = bnd$lower, upper = bnd$upper)
 cbind(1:length(obj$par), bnd$lower, obj$par, bnd$upper)
-get_sel_list(data = Data, opt = opt)
+get_sel_list(data = Data, opt = opt, bounds = bnd)
 
 plot_selectivity(data = Data, object = obj, posterior = NULL, years = 1931:1958)
 

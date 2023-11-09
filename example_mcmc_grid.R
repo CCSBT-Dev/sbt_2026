@@ -89,21 +89,26 @@ opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr,
 
 # Run MCMC ----
 
-mcmc_grd <- list()
+if (FALSE) {
+  Params$par_log_h <- log(0.55)
+  Params$par_log_psi <- log(1.5)
+  mcmc_g1 <- tmbstan(obj = obj, lower = bnd$lower, upper = bnd$upper,
+                     init = rep(list(Params), 2), chains = 2,
+                     control = list(max_treedepth = 12))
+  save(mcmc_g1, file = "mcmc_g1.rda")
+  
+  Params$par_log_h <- log(0.8)
+  Params$par_log_psi <- log(2)
+  mcmc_g2 <- tmbstan(obj = obj, lower = bnd$lower, upper = bnd$upper,
+                     init = rep(list(Params), 2), chains = 2,
+                     control = list(max_treedepth = 12))
+  save(mcmc_g2, file = "mcmc_g2.rda")
+} else {
+  load("mcmc_g1.rda")
+  load("mcmc_g2.rda")
+}
 
-Params$par_log_h <- log(0.55)
-Params$par_log_psi <- log(1.5)
-mcmc_g1 <- tmbstan(obj = obj, lower = bnd$lower, upper = bnd$upper,
-                   init = rep(list(Params), 2), chains = 2,
-                   control = list(max_treedepth = 12))
-save(mcmc_g1, file = "mcmc_g1.rda")
-
-Params$par_log_h <- log(0.8)
-Params$par_log_psi <- log(2)
-mcmc_g2 <- tmbstan(obj = obj, lower = bnd$lower, upper = bnd$upper,
-                   init = rep(list(Params), 2), chains = 2,
-                   control = list(max_treedepth = 12))
-save(mcmc_g2, file = "mcmc_g2.rda")
+mcmc_grd <- list(mcmc_g1, mcmc_g2)
 
 # Run grid ----
 
@@ -125,13 +130,31 @@ pars <- c("lp__", "par_log_B0",
           "par_sels_init_i[1]", "par_sels_init_i[78]", 
           "par_sels_change_i[1]", "par_sels_change_i[1132]")
 
-stan_trace(object = mcmc1, pars = pars)
-stan_hist(object = mcmc1, pars = pars)
-stan_dens(object = mcmc1, pars = pars)
-stan_plot(object = mcmc1, pars = "par_logit_hstar_i")
+stan_trace(object = mcmc_grd[[1]], pars = pars)
+stan_hist(object = mcmc_grd[[1]], pars = pars)
+stan_dens(object = mcmc_grd[[1]], pars = pars)
+stan_plot(object = mcmc_grd[[1]], pars = "par_logit_hstar_i")
 
-plot_natural_mortality(data = Data, object = obj, posterior = mcmc1)
+plot_natural_mortality(data = Data, object = obj, posterior = mcmc_grd[[1]])
 
 # only this function has posterior and grid so far
-plot_biomass_spawning(data = Data, object = obj, grid = grd, posterior = mcmc1)
-ggsave(filename = "biomass_spawning_grid_mcmc.png", width = 7, height = 4)
+plot_biomass_spawning(data = Data, object = obj, grid = grd, posterior = mcmc_grd, relative = FALSE)
+ggsave(filename = "biomass_spawning_grid_mcmc_grid.png", width = 7, height = 4)
+
+# plot_biomass_spawning(data = Data, object = obj, grid = grd, posterior = mcmc_grd[[1]], relative = FALSE)
+# plot_biomass_spawning(data = Data, object = obj, grid = grd, posterior = mcmc_grd[[1]], relative = FALSE)
+# ggsave(filename = "biomass_spawning_grid_mcmc.png", width = 7, height = 4)
+
+# Example of model averaging ----
+
+loo_grid1 <- get_loo(object = obj, posterior = mcmc_grd[[1]])
+loo_grid2 <- get_loo(object = obj, posterior = mcmc_grd[[2]])
+save(loo_grid1, loo_grid2, file = "loo_grid.rda")
+load("loo_grid.rda")
+print(loo_grid1)
+print(loo_grid2)
+plot_loo(x = loo_grid1)
+plot_loo(x = loo_grid2)
+loo::loo_model_weights(x = list(loo_grid1, loo_grid2), method = "pseudobma")
+loo::loo_model_weights(x = list(loo_grid1, loo_grid2), method = "stacking")
+# mcmc2 <- sflist2stanfit(sflist = list(mcmc1, mcmc1))

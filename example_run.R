@@ -17,9 +17,11 @@ Data1 <- list(last_yr = 2022, age_increase_M = 25,
               catch = catch, catch_UA = catch_UA, 
               catch_UR_on = 0, catch_surf_case = 1, catch_LL1_case = 1, 
               scenarios_surf = scenarios_surface, scenarios_LL1 = scenarios_LL1,
-              sel_min_age_f = c(2, 2, 2, 8, 6, 0), 
-              sel_max_age_f = c(17, 9, 17, 22, 25, 7),
-              sel_end_f = c(1, 0, 1, 1, 1, 0),
+              sel_min_age_f = c(2, 2, 2, 8, 6, 0),
+              # sel_max_age_f = c(17, 9, 17, 22, 25, 7),
+              sel_max_age_f = c(17, 9, 17, 16, 25, 7),
+              # sel_end_f = c(1, 0, 1, 1, 1, 0),
+              sel_end_f = c(0, 0, 0, 0, 1, 0),
               sel_change_sd_fy = t(as.matrix(sel_change_sd[,-1])), 
               sel_smooth_sd_f = data_labrep1$sel.smooth.sd,
               hsp_switch = 1, HSPs = HSPs, hsp_false_negative = 0.7467647, 
@@ -38,6 +40,16 @@ Data <- get_data(data_in = Data1)
 
 # Create parameter list ----
 
+cumsum(Data$sel_max_age_f - Data$sel_min_age_f + 1)
+n_init <- sum(Data$sel_max_age_f - Data$sel_min_age_f + 1)
+n_init
+length(data_par1$par_sels_init_i)
+# get_sel_list(data = Data)
+
+n_change <- sum((Data$sel_max_age_f - Data$sel_min_age_f + 1) * (rowSums(Data$sel_change_sd_fy > 0)))
+n_change
+length(data_par1$par_sels_change_i)
+
 Params <- list(par_log_B0 = data_par1$ln_B0, 
                par_log_psi = log(data_par1$psi),
                par_log_m0 = log(data_par1$m0), 
@@ -47,8 +59,11 @@ Params <- list(par_log_B0 = data_par1$ln_B0,
                par_log_h = log(data_par1$steep), 
                par_log_sigma_r = log(data_labrep1$sigma.r),
                par_rdev_y = data_par1$Reps,
-               par_sels_init_i = data_par1$par_sels_init_i,
-               par_sels_change_i = data_par1$par_sels_change_i,
+               # par_sels_init_i = data_par1$par_sels_init_i,
+               # par_sels_change_i = data_par1$par_sels_change_i,
+               # par_sels_init_i = data_par1$par_sels_init_i[1:n_init],
+               par_sels_init_i = data_par1$par_sels_init_i[c(1:49, 56:83)],
+               par_sels_change_i = data_par1$par_sels_change_i[1:n_change],
                par_log_cpue_q = data_par1$lnq,
                par_log_cpue_sigma = log(data_par1$sigma_cpue),
                par_log_cpue_omega = log(data_par1$cpue_omega),
@@ -86,7 +101,6 @@ Map[["par_log_tag_H_factor"]] <- factor(NA)
 
 # Specify the random effects
 # Random <- c("par_rdev_y", "par_sels_change_i")
-# Random <- c("par_rdev_y")
 Random <- c()
 
 # Create the AD object ----
@@ -102,22 +116,22 @@ bnd <- get_bounds(obj = obj)
 
 unique(names(obj$par)) # List of parameters that are "on"
 check_bounds(opt = obj, lower = bnd$lower, upper = bnd$upper)
-newtonOption(obj = obj, smartsearch = TRUE)
+# newtonOption(obj = obj, smartsearch = TRUE)
 obj$fn(obj$par)
 # obj$gr(obj$par)
-obj$control <- list(trace = 100)
-ConvergeTol <- 2 # 1:Normal; 2:Strong
+# obj$control <- list(trace = 100)
+# ConvergeTol <- 2 # 1:Normal; 2:Strong
 # obj$env$inner.control$step.tol <- c(1e-12, 1e-15)[ConvergeTol] # Default : 1e-8 # Change in parameters limit inner optimization
 # obj$env$inner.control$tol10 <- c(1e-8, 1e-12)[ConvergeTol]  # Default : 1e-3 # Change in pen.like limit inner optimization
 # obj$env$inner.control$grad.tol <- c(1e-12, 1e-15)[ConvergeTol] # # Default : 1e-8 # Maximum gradient limit inner optimization
-summary(obj)
+# summary(obj)
 
 # Optimize ----
 
 opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr,
-              lower = bnd$lower, upper = bnd$upper,
-              control = list(eval.max = 1000,  # deaults to 200
-                             iter.max = 1000)) # deaults to 150
+              lower = bnd$lower, upper = bnd$upper)
+              # control = list(eval.max = 1000,  # deaults to 200
+              #                iter.max = 1000)) # deaults to 150
 # control = list(eval.max = 2e4, iter.max = 1e4, rel.tol = 1e-7, trace = 1))
 # opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, upper = Upr, lower = Lwr, control = list(eval.max = 1e4, iter.max = 1e4, rel.tol = c(1e-10, 1e-8)[ConvergeTol], trace = 1))
 
@@ -142,19 +156,23 @@ get_sel_list(data = Data, opt = opt, bounds = bnd)
 
 plot_selectivity(data = Data, object = obj, posterior = NULL, years = 1931:1958)
 
+plot_selectivity(data = Data, object = obj, years = 1931:2022, fisheries = "LL1")
+plot_selectivity(data = Data, object = obj, years = 1931:2022, fisheries = "LL2")
+plot_selectivity(data = Data, object = obj, years = 1931:2022, fisheries = "LL3")
+plot_selectivity(data = Data, object = obj, years = 1931:2022, fisheries = "LL4")
+plot_selectivity(data = Data, object = obj, years = 1931:2022, fisheries = "Indonesian")
+plot_selectivity(data = Data, object = obj, years = 1931:2022, fisheries = "Australian")
+
 # Likelihood profile ----
 
-prof_B0 <- tmbprofile(obj = obj, name = "par_log_B0")
-plot(x = prof_B0)
+prof_B0 <- tmbprofile(obj = obj, name = "par_log_B0", ytol = 4, ystep = 0.1, slice = TRUE)
+ggplot(data = prof_B0, aes(x = par_log_B0, y = value)) + geom_line()
+# confint(prof_B0)
 
 prof_m4 <- tmbprofile(obj = obj, name = "par_log_m4")
-plot(x = prof_m4)
+ggplot(data = prof_m4, aes(x = par_log_m4, y = value)) + geom_line()
 
 # prof_sd_weight <- tmbprofile(obj = obj, name = "par_log_m4", ystep = 0.01, parm.range = c(-5, 0))
 # plot(x = prof_sd_weight)
 # conf_sd_weight <- confint(object = prof_sd_weight)
 # plot(x = conf_sd_weight)
-# prof_sd_length <- tmbprofile(obj = obj, name = "log_sd_length", parm.range = c(-7, -1))
-# conf_sd_length <- confint(object = prof_sd_length)
-# plot(x = prof_sd_length)
-# plot(x = conf_sd_length)

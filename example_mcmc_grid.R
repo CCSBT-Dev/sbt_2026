@@ -147,8 +147,8 @@ ggsave(filename = "biomass_spawning_grid_mcmc_grid.png", width = 7, height = 4)
 
 # Example of model averaging ----
 
-loo_grid1 <- get_loo(object = obj, posterior = mcmc_grd[[1]])
-loo_grid2 <- get_loo(object = obj, posterior = mcmc_grd[[2]])
+loo_grid1 <- get_loo(data = Data, object = obj, posterior = mcmc_grd[[1]])
+loo_grid2 <- get_loo(data = Data, object = obj, posterior = mcmc_grd[[2]])
 save(loo_grid1, loo_grid2, file = "loo_grid.rda")
 load("loo_grid.rda")
 print(loo_grid1)

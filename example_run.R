@@ -143,10 +143,10 @@ Report <- sdreport(obj = obj)
 
 print(Report$pdHess) # Is the fit positive definite Hessian?
 # Hess <- optimHess(par = obj$par, fn = obj$fn, gr = obj$gr)
-opt$hessian # hessian from optim
+# opt$hessian # hessian from optim
 he <- obj$he() # analytical hessian
 he_inv <- solve(he)
-he_ch <- chol(he)
+# he_ch <- chol(he)
 ev <- eigen(he)
 range(ev$values)
 

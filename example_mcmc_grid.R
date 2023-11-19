@@ -84,31 +84,45 @@ check_bounds(opt = obj, lower = bnd$lower, upper = bnd$upper)
 # Optimize ----
 
 opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, 
-              lower = bnd$lower, upper = bnd$upper,
-              control = list(eval.max = 1000, iter.max = 1000))
+              lower = bnd$lower, upper = bnd$upper)
 
 # Run MCMC ----
+
+# control <- list(max_treedepth = 12, adapt_delta = 0.9)
+control <- list(max_treedepth = 12)
 
 if (FALSE) {
   Params$par_log_h <- log(0.55)
   Params$par_log_psi <- log(1.5)
   mcmc_g1 <- tmbstan(obj = obj, lower = bnd$lower, upper = bnd$upper,
-                     init = rep(list(Params), 2), chains = 2,
-                     control = list(max_treedepth = 12))
+                     init = rep(list(Params), 2), chains = 2, control = control)
   save(mcmc_g1, file = "mcmc_g1.rda")
   
   Params$par_log_h <- log(0.8)
   Params$par_log_psi <- log(2)
   mcmc_g2 <- tmbstan(obj = obj, lower = bnd$lower, upper = bnd$upper,
-                     init = rep(list(Params), 2), chains = 2,
-                     control = list(max_treedepth = 12))
+                     init = rep(list(Params), 2), chains = 2, control = control)
   save(mcmc_g2, file = "mcmc_g2.rda")
+  
+  Params$par_log_h <- log(0.55)
+  Params$par_log_psi <- log(2)
+  mcmc_g3 <- tmbstan(obj = obj, lower = bnd$lower, upper = bnd$upper,
+                     init = rep(list(Params), 2), chains = 2, control = control)
+  save(mcmc_g3, file = "mcmc_g3.rda")
+
+  Params$par_log_h <- log(0.8)
+  Params$par_log_psi <- log(1.5)
+  mcmc_g4 <- tmbstan(obj = obj, lower = bnd$lower, upper = bnd$upper,
+                     init = rep(list(Params), 2), chains = 2, control = control)
+  save(mcmc_g4, file = "mcmc_g4.rda")
 } else {
   load("mcmc_g1.rda")
   load("mcmc_g2.rda")
+  load("mcmc_g3.rda")
+  load("mcmc_g4.rda")
 }
 
-mcmc_grd <- list(mcmc_g1, mcmc_g2)
+mcmc_grd <- list(mcmc_g1, mcmc_g2, mcmc_g3, mcmc_g4)
 
 # Run grid ----
 

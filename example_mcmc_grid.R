@@ -109,7 +109,7 @@ if (FALSE) {
   mcmc_g3 <- tmbstan(obj = obj, lower = bnd$lower, upper = bnd$upper,
                      init = rep(list(Params), 2), chains = 2, control = control)
   save(mcmc_g3, file = "mcmc_g3.rda")
-
+  
   Params$par_log_h <- log(0.8)
   Params$par_log_psi <- log(1.5)
   mcmc_g4 <- tmbstan(obj = obj, lower = bnd$lower, upper = bnd$upper,
@@ -161,14 +161,20 @@ ggsave(filename = "biomass_spawning_grid_mcmc_grid.png", width = 7, height = 4)
 
 # Example of model averaging ----
 
-loo_grid1 <- get_loo(data = Data, object = obj, posterior = mcmc_grd[[1]])
-loo_grid2 <- get_loo(data = Data, object = obj, posterior = mcmc_grd[[2]])
-save(loo_grid1, loo_grid2, file = "loo_grid.rda")
-load("loo_grid.rda")
+if (FALSE) {
+  loo_grid1 <- get_loo(data = Data, object = obj, posterior = mcmc_grd[[1]])
+  loo_grid2 <- get_loo(data = Data, object = obj, posterior = mcmc_grd[[2]])
+  loo_grid3 <- get_loo(data = Data, object = obj, posterior = mcmc_grd[[3]])
+  loo_grid4 <- get_loo(data = Data, object = obj, posterior = mcmc_grd[[4]])
+  save(loo_grid1, loo_grid2, loo_grid3, loo_grid4, file = "loo_grid.rda")
+} else {
+  load("loo_grid.rda")
+}
+
 print(loo_grid1)
-print(loo_grid2)
+print(loo_grid4)
 plot_loo(x = loo_grid1)
-plot_loo(x = loo_grid2)
-loo::loo_model_weights(x = list(loo_grid1, loo_grid2), method = "pseudobma")
-loo::loo_model_weights(x = list(loo_grid1, loo_grid2), method = "stacking")
+plot_loo(x = loo_grid4)
+loo::loo_model_weights(x = list(loo_grid1, loo_grid2, loo_grid3, loo_grid4), method = "pseudobma")
+# loo::loo_model_weights(x = list(loo_grid1, loo_grid2, loo_grid3, loo_grid4), method = "stacking")
 # mcmc2 <- sflist2stanfit(sflist = list(mcmc1, mcmc1))

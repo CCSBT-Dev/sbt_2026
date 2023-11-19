@@ -175,6 +175,9 @@ print(loo_grid1)
 print(loo_grid4)
 plot_loo(x = loo_grid1)
 plot_loo(x = loo_grid4)
-loo::loo_model_weights(x = list(loo_grid1, loo_grid2, loo_grid3, loo_grid4), method = "pseudobma")
+
+loo::loo_model_weights(x = list(loo_grid1, loo_grid2, loo_grid3, loo_grid4), 
+                       method = "pseudobma")
+
 # loo::loo_model_weights(x = list(loo_grid1, loo_grid2, loo_grid3, loo_grid4), method = "stacking")
 # mcmc2 <- sflist2stanfit(sflist = list(mcmc1, mcmc1))

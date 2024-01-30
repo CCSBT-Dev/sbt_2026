@@ -20,9 +20,11 @@ Data1 <- list(last_yr = 2022, age_increase_M = 25,
               catch = catch, catch_UA = catch_UA, 
               catch_UR_on = 0, catch_surf_case = 1, catch_LL1_case = 1, 
               scenarios_surf = scenarios_surface, scenarios_LL1 = scenarios_LL1,
-              sel_min_age_f = c(2, 2, 2, 8, 6, 0), 
-              sel_max_age_f = c(17, 9, 17, 22, 25, 7),
-              sel_end_f = c(1, 0, 1, 1, 1, 0),
+              sel_min_age_f = c(2, 2, 2, 8, 6, 0),
+              # sel_max_age_f = c(17, 9, 17, 22, 25, 7),
+              sel_max_age_f = c(17, 9, 17, 16, 25, 7),
+              # sel_end_f = c(1, 0, 1, 1, 1, 0),
+              sel_end_f = c(0, 0, 0, 0, 1, 0),
               sel_change_sd_fy = t(as.matrix(sel_change_sd[,-1])), 
               sel_smooth_sd_f = data_labrep1$sel.smooth.sd,
               hsp_switch = 1, HSPs = HSPs, hsp_false_negative = 0.7467647, 
@@ -50,7 +52,10 @@ Params <- list(par_log_B0 = data_par1$ln_B0,
                par_log_h = log(data_par1$steep), 
                par_log_sigma_r = log(data_labrep1$sigma.r),
                par_rdev_y = data_par1$Reps,
-               par_sels_init_i = data_par1$par_sels_init_i,
+               # par_sels_init_i = data_par1$par_sels_init_i,
+               # par_sels_change_i = data_par1$par_sels_change_i,
+               # par_sels_init_i = data_par1$par_sels_init_i[1:n_init],
+               par_sels_init_i = data_par1$par_sels_init_i[c(1:49, 56:83)],
                par_sels_change_i = data_par1$par_sels_change_i,
                par_log_cpue_q = data_par1$lnq,
                par_log_cpue_sigma = log(data_par1$sigma_cpue),
@@ -101,26 +106,31 @@ check_bounds(opt = obj, lower = bnd$lower, upper = bnd$upper)
 # Optimize ----
 
 opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, 
-              lower = bnd$lower, upper = bnd$upper,
-              control = list(eval.max = 1000, iter.max = 1000))
+              lower = bnd$lower, upper = bnd$upper)
 
 # Run MCMC ----
 
+if (FALSE) {
+  mcmc1 <- tmbstan(obj = obj, lower = bnd$lower, upper = bnd$upper,
+                   init = rep(list(Params), 2), chains = 2,
+                   control = list(max_treedepth = 12, adapt_delta = 0.9))
+  save(mcmc1, file = "mcmc1.rda")
+  loo1 <- get_loo(data = Data, object = obj, posterior = mcmc1)
+  save(loo1, file = "loo1.rda")
+} else {
+  load("mcmc1.rda")
+  load("loo1.rda")
+}
+
 # get_stancode(mcmc1)
-# mcmc1 <- tmbstan(obj = obj, lower = bnd$lower, upper = bnd$upper,
-#                  init = rep(list(Params), 2), chains = 2,
-#                  control = list(max_treedepth = 12))
-# save(obj, mcmc1, file = "mcmc1.rda")
-load("mcmc1.rda")
 
 # Example of model averaging ----
 
-# loo1 <- get_loo(object = obj, posterior = mcmc1)
-# save(loo1, file = "loo1.rda")
-load("loo1.rda")
 print(loo1)
 plot_loo(x = loo1)
+
 loo::loo_model_weights(x = list(loo1, loo1))
+
 # mcmc2 <- sflist2stanfit(sflist = list(mcmc1, mcmc1))
 
 # Run grid ----

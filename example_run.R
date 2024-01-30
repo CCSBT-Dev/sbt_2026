@@ -26,11 +26,10 @@ Data1 <- list(last_yr = 2022, age_increase_M = 25,
               pop_switch = 1, POPs = POPs, 
               gt_switch = 1, GTs = GTs,
               cpue_switch = 1, cpue = cpue, cpue_a1 = 5, cpue_a2 = 17,
-              aerial_switch = 4, aerial_surv = aerial_surv, 
+              aerial_switch = 4, 
               aerial_cov = aerial_cov, aerial_tau = data_labrep1$tau.aerial, 
               troll_switch = 0, troll = troll, 
-              af = af, 
-              lf = lf, lf_minbin = c(1, 1, 1, 11),
+              lf_minbin = c(1, 1, 1, 11),
               tag_var_factor = 1.82, tag_switch = 1
 )
 

@@ -13,8 +13,6 @@ attach(data_csv1)
 
 Data1 <- list(last_yr = 2022, age_increase_M = 25,
               length_m50 = 150, length_m95 = 180, 
-              length_mean = length_mean, length_sd = length_sd, 
-              catch = catch, catch_UA = catch_UA, 
               catch_UR_on = 0, catch_surf_case = 1, catch_LL1_case = 1, 
               scenarios_surf = scenarios_surface, scenarios_LL1 = scenarios_LL1,
               sel_min_age_f = c(2, 2, 2, 8, 6, 0),
@@ -24,15 +22,14 @@ Data1 <- list(last_yr = 2022, age_increase_M = 25,
               sel_end_f = c(0, 0, 0, 0, 1, 0),
               sel_change_sd_fy = t(as.matrix(sel_change_sd[,-1])), 
               sel_smooth_sd_f = data_labrep1$sel.smooth.sd,
-              hsp_switch = 1, HSPs = HSPs, hsp_false_negative = 0.7467647, 
-              pop_switch = 1, POPs = POPs, 
-              gt_switch = 1, GTs = GTs,
+              hsp_switch = 1, hsp_false_negative = 0.7467647, 
+              pop_switch = 1, 
+              gt_switch = 1,
               cpue_switch = 1, cpue = cpue, cpue_a1 = 5, cpue_a2 = 17,
-              aerial_switch = 4, 
-              aerial_cov = aerial_cov, aerial_tau = data_labrep1$tau.aerial, 
-              troll_switch = 0, troll = troll, 
+              aerial_switch = 4, aerial_tau = data_labrep1$tau.aerial, 
+              troll_switch = 0, 
               lf_minbin = c(1, 1, 1, 11),
-              tag_var_factor = 1.82, tag_switch = 1
+              tag_switch = 1, tag_var_factor = 1.82
 )
 
 Data <- get_data(data_in = Data1)
@@ -128,11 +125,15 @@ obj$fn(obj$par)
 # Optimize ----
 
 opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr,
-              lower = bnd$lower, upper = bnd$upper)
-              # control = list(eval.max = 1000,  # deaults to 200
-              #                iter.max = 1000)) # deaults to 150
+              lower = bnd$lower, upper = bnd$upper,
+              control = list(eval.max = 1000,  # deaults to 200
+                             iter.max = 1000)) # deaults to 150
 # control = list(eval.max = 2e4, iter.max = 1e4, rel.tol = 1e-7, trace = 1))
 # opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, upper = Upr, lower = Lwr, control = list(eval.max = 1e4, iter.max = 1e4, rel.tol = c(1e-10, 1e-8)[ConvergeTol], trace = 1))
+
+opt$par[1:10]
+opt$objective
+opt$message
 
 # Inspect the Hessian ----
 

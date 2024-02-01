@@ -126,14 +126,17 @@ obj$fn(obj$par)
 
 opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr,
               lower = bnd$lower, upper = bnd$upper,
-              control = list(eval.max = 1000,  # deaults to 200
-                             iter.max = 1000)) # deaults to 150
+              control = list(eval.max = 10000,  # deaults to 200
+                             iter.max = 10000)) # deaults to 150
 # control = list(eval.max = 2e4, iter.max = 1e4, rel.tol = 1e-7, trace = 1))
 # opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, upper = Upr, lower = Lwr, control = list(eval.max = 1e4, iter.max = 1e4, rel.tol = c(1e-10, 1e-8)[ConvergeTol], trace = 1))
 
 opt$par[1:10]
 opt$objective
+opt$convergence
 opt$message
+opt$iterations
+opt$evaluations
 
 # Inspect the Hessian ----
 

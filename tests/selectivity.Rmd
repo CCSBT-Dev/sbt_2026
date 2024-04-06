@@ -1,0 +1,89 @@
+---
+title: "Selectivity"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 2
+vignette: >
+  %\VignetteIndexEntry{Selectivity}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options:
+  chunk_output_type: console
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r echo=TRUE, message=FALSE}
+library(tidyverse)
+library(reshape2)
+library(ggridges)
+library(MASS)
+
+theme_set(theme_bw())
+
+double_normal_curve <- function(x, x50, xl, xr) {
+  delta <- 5.0
+  tmp <- log(0.5)
+  stmp <- 1.0 / (1.0 + exp(-delta * (x - x50)));
+  y <- stmp * exp(tmp * ((x - x50) / xr)^2) + (1.0 - stmp) * 
+    exp(tmp * ((x - x50) / xl)^2);
+  return(y)
+}
+```
+
+```{r echo=TRUE, message=FALSE}
+ages <- 0:30
+years <- 1990:1995
+n_age <- length(ages)
+n_year <- length(years)
+
+sel_age <- double_normal_curve(ages, 15, 5, 20)
+df <- data.frame(age = ages, sel = sel_age)
+```
+
+```{r echo=TRUE, message=FALSE}
+ggplot(data = df, aes(x = age, y = sel)) +
+  geom_line() +
+  labs(x = "Age", y = "Selectivity") +
+  scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.05)))
+```
+
+```{r echo=TRUE, message=FALSE}
+set.seed(2)
+sd_age <- 0.05
+sd_year <- 0.2
+Rage <- sd_age * diag(n_age) * 
+  exp(as.numeric(arima.sim(list(order = c(1, 0, 0), ar = 0.9), n = n_age)))
+Ryear <- sd_year * diag(n_year) * 
+  exp(as.numeric(arima.sim(list(order = c(1, 0, 0), ar = 0.99), n = n_year)))
+R <- kronecker(Rage, Ryear) # R <- Rage %x% Ryear is the same thing
+veps <- mvrnorm(n = 1, mu = rep(0, n_age * n_year), Sigma = R)
+eps <- matrix(veps, nrow = n_age, ncol = n_year)
+sel_ay <- sel_age * exp(eps)
+sel_ay <- sel_ay %>% melt() %>% mutate(age = ages[Var1], year = years[Var2])
+```
+
+```{r echo=FALSE, message=FALSE}
+image(eps)
+```
+
+```{r echo=FALSE, message=FALSE}
+ggplot(data = sel_ay, aes(x = age, y = factor(year))) +
+  geom_ridgeline(aes(height = value), alpha = 0.75, fill = "orange") +
+  labs(x = "Age", y = NULL)
+```
+
+```{r echo=FALSE, message=FALSE, fig.width=9}
+ggplot(data = sel_ay) +
+  geom_hline(yintercept = 1) +
+  geom_line(data = df, aes(x = age, y = sel)) +
+  geom_line(aes(x = age, y = value, colour = factor(year))) +
+  scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.05))) +
+  labs(x = "Age", y = "Selectivity", color = "Year")
+```

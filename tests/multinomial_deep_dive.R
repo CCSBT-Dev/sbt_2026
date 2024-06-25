@@ -6,10 +6,7 @@ library(tidyverse)
 library(TMB)
 library(sbt)
 
-setwd("tests")
-
-compile(file = "dm.cpp")
-dyn.load(dynlib("dm"))
+# setwd("tests")
 
 attach(data_csv1)
 
@@ -37,26 +34,6 @@ Data1 <- list(last_yr = 2022, age_increase_M = 25,
 Data <- get_data(data_in = Data1)
 
 # Likelihood vs. pdf  for ADMB multinomial distribution ----
-
-multiF_age <- function(x, p) {
-  Nsamp <- sum(x)
-  obs_age_freq <- x / sum(x)
-  obs_age_freq <- obs_age_freq + 1e-6
-  pred_age_freq <- p + 1e-6
-  lp <- -1 * sum(Nsamp * obs_age_freq * log(pred_age_freq))
-  lp <- lp + sum(Nsamp * obs_age_freq * log(obs_age_freq))
-  return(-lp)
-}
-
-multiF_len <- function(x, p) {
-  Nsamp <- sum(x)
-  obs_len_freq <- x / sum(x)
-  pred_len_freq <- p + 1e-6
-  lp <- -1 * sum(Nsamp * obs_len_freq * log(pred_len_freq)) # ln_like(iff) -= Nsamp(iff,iy)*((Nrobust+obs_len_freq_il(ii)(mbin,nbins)*log(Nrobust+pred_len_freq_il(ii)(mbin,nbins))));
-  obs_len_freq <- obs_len_freq + 1e-6
-  lp <- lp + sum(Nsamp * obs_len_freq * log(obs_len_freq)) # mult_constant(iff) += Nsamp(iff,iy)*(1e-6+obs_len_freq_il(irec)(mbin,nbins))*log(1e-6+obs_len_freq_il(irec)(mbin,nbins));
-  return(-lp)
-}
 
 # https://discourse.mc-stan.org/t/multinomial-with-non-integer-data/9220
 multiF_stan <- function(x, p) {
@@ -116,6 +93,33 @@ dmultinom_r <- function(x, size = NULL, prob, log = FALSE) {
   else exp(r)
 }
 
+# From CCSBT ADMB code
+# lp(i) -= lf_n(i) * (x * log(pred)).sum(); // ln_like(iff) -= Nsamp(iff,iy)*((Nrobust+obs_len_freq_il(ii)(mbin,nbins)*log(Nrobust+pred_len_freq_il(ii)(mbin,nbins))));
+# x += Type(1e-6);
+# lp(i) += lf_n(i) * (x * log(x)).sum(); // mult_constant(iff) += Nsamp(iff,iy)*(1e-6+obs_len_freq_il(irec)(mbin,nbins))*log(1e-6+obs_len_freq_il(irec)(mbin,nbins));
+
+multiF_age <- function(x, p) {
+  Nsamp <- sum(x)
+  obs_age_freq <- x / sum(x)
+  obs_age_freq <- obs_age_freq + 1e-6
+  pred_age_freq <- p + 1e-6
+  lp <- -1 * sum(Nsamp * obs_age_freq * log(pred_age_freq))
+  lp <- lp + sum(Nsamp * obs_age_freq * log(obs_age_freq))
+  return(-lp)
+}
+
+multiF_len <- function(x, p) {
+  Nsamp <- sum(x)
+  obs_len_freq <- x / sum(x)
+  pred_len_freq <- p + 1e-6
+  lp <- -1 * sum(Nsamp * obs_len_freq * log(pred_len_freq)) # ln_like(iff) -= Nsamp(iff,iy)*((Nrobust+obs_len_freq_il(ii)(mbin,nbins)*log(Nrobust+pred_len_freq_il(ii)(mbin,nbins))));
+  obs_len_freq <- obs_len_freq + 1e-6
+  lp <- lp + sum(Nsamp * obs_len_freq * log(obs_len_freq)) # mult_constant(iff) += Nsamp(iff,iy)*(1e-6+obs_len_freq_il(irec)(mbin,nbins))*log(1e-6+obs_len_freq_il(irec)(mbin,nbins));
+  return(-lp)
+}
+
+# Integer case
+
 alpha <- 1:10
 p <- 1:10
 p <- p / sum(p)
@@ -124,24 +128,27 @@ p <- rowSums(x)
 p <- p / sum(p)
 dim(x)
 
-obj <- MakeADFun(data = list(x = x), parameters = list(prob = p, alpha = alpha), DLL = "dm")
-ll_tmb1 <- obj$report()$multinomial_dens
-ll_tmb <- apply(x, 2, FUN = function(x) multiF_tmb(x, p))
-sum(ll_tmb1 - ll_tmb)
+# compile(file = "dm.cpp")
+# dyn.load(dynlib("dm"))
+# 
+# obj <- MakeADFun(data = list(x = x), parameters = list(prob = p, alpha = alpha), DLL = "dm")
+# ll_tmb1 <- obj$report()$multinomial_dens
+# sum(ll_tmb1 - ll_tmb)
+# ll_stan <- apply(x, 2, FUN = function(x) multiF_stan(x, p))
 ll_a <- apply(x, 2, FUN = function(x) multiF_age(x, p))
 ll_l <- apply(x, 2, FUN = function(x) multiF_len(x, p))
+ll_tmb <- apply(x, 2, FUN = function(x) multiF_tmb(x, p))
 ll_casal <- apply(x, 2, FUN = function(x) multiF_casal(x, p))
-ll_stan <- apply(x, 2, FUN = function(x) multiF_stan(x, p))
 ll_r <- apply(x, 2, FUN = function(x) dmultinom(x = x, prob = p, log = TRUE))
 ll_r2 <- apply(x, 2, FUN = function(x) dmultinom_r(x = x, prob = p, log = TRUE))
 
 par(mfrow = c(2, 3))
-plot(ll_r, ll_r2)
-plot(ll_r, ll_tmb)
-plot(ll_r, ll_casal)
-plot(ll_r, ll_stan)
-plot(ll_r, ll_a)
-plot(ll_r, ll_l)
+plot(ll_tmb, ll_r, col = 2); abline(a = 0, b = 1); title(main = "TMB vs. R")
+plot(ll_tmb, ll_r2, col = 2); abline(a = 0, b = 1); title(main = "TMB vs. R (continuous)")
+plot(ll_tmb, ll_casal, col = 2); abline(a = 0, b = 1); title(main = "TMB vs. CASAL")
+plot(ll_tmb, ll_a, col = 2); abline(a = 0, b = 1); title(main = "TMB vs. CCSBT age")
+plot(ll_tmb, ll_l, col = 2); abline(a = 0, b = 1); title(main = "TMB vs. CCSBT length")
+# plot(ll_tmb, ll_stan, col = 2); abline(a = 0, b = 1); title(main = "TMB vs. Stan")
 
 # Non-integer case
 
@@ -153,14 +160,14 @@ p <- rowSums(x)
 p <- p / sum(p)
 dim(x)
 
-obj <- MakeADFun(data = list(x = x), parameters = list(prob = p, alpha = alpha), DLL = "dm")
-ll_tmb1 <- obj$report()$multinomial_dens
-ll_tmb <- apply(x, 2, FUN = function(x) multiF_tmb(x, p))
-sum(ll_tmb1 - ll_tmb)
+# obj <- MakeADFun(data = list(x = x), parameters = list(prob = p, alpha = alpha), DLL = "dm")
+# ll_tmb1 <- obj$report()$multinomial_dens
+# sum(ll_tmb1 - ll_tmb)
+# ll_stan <- apply(x, 2, FUN = function(x) multiF_stan(x, p))
 ll_a <- apply(x, 2, FUN = function(x) multiF_age(x, p))
 ll_l <- apply(x, 2, FUN = function(x) multiF_len(x, p))
+ll_tmb <- apply(x, 2, FUN = function(x) multiF_tmb(x, p))
 ll_casal <- apply(x, 2, FUN = function(x) multiF_casal(x, p))
-ll_stan <- apply(x, 2, FUN = function(x) multiF_stan(x, p))
 ll_r <- apply(x, 2, FUN = function(x) dmultinom(x = x, prob = p, log = TRUE))
 ll_r2 <- apply(x, 2, FUN = function(x) dmultinom_r(x = x, prob = p, log = TRUE))
 
@@ -168,9 +175,9 @@ par(mfrow = c(2, 3))
 plot(ll_tmb, ll_r, col = 2); abline(a = 0, b = 1); title(main = "TMB vs. R")
 plot(ll_tmb, ll_r2, col = 2); abline(a = 0, b = 1); title(main = "TMB vs. R (continuous)")
 plot(ll_tmb, ll_casal, col = 2); abline(a = 0, b = 1); title(main = "TMB vs. CASAL")
-plot(ll_tmb, ll_stan, col = 2); abline(a = 0, b = 1); title(main = "TMB vs. Stan")
 plot(ll_tmb, ll_a, col = 2); abline(a = 0, b = 1); title(main = "TMB vs. CCSBT age")
 plot(ll_tmb, ll_l, col = 2); abline(a = 0, b = 1); title(main = "TMB vs. CCSBT length")
+# plot(ll_tmb, ll_stan, col = 2); abline(a = 0, b = 1); title(main = "TMB vs. Stan")
 
 # Non-integer real-data case
 
@@ -185,14 +192,14 @@ alpha <- 1:length(p)
 # plot(p, type = "b")
 # colSums(x) == Data$lf_n
 
-obj <- MakeADFun(data = list(x = x), parameters = list(prob = p, alpha = alpha), DLL = "dm")
-ll_tmb1 <- obj$report()$multinomial_dens
-ll_tmb <- apply(x, 2, FUN = function(x) multiF_tmb(x, p))
-sum(ll_tmb1 - ll_tmb)
+# obj <- MakeADFun(data = list(x = x), parameters = list(prob = p, alpha = alpha), DLL = "dm")
+# ll_tmb1 <- obj$report()$multinomial_dens
+# sum(ll_tmb1 - ll_tmb)
+# ll_stan <- apply(x, 2, FUN = function(x) multiF_stan(x, p))
 ll_a <- apply(x, 2, FUN = function(x) multiF_age(x, p))
 ll_l <- apply(x, 2, FUN = function(x) multiF_len(x, p))
+ll_tmb <- apply(x, 2, FUN = function(x) multiF_tmb(x, p))
 ll_casal <- apply(x, 2, FUN = function(x) multiF_casal(x, p))
-ll_stan <- apply(x, 2, FUN = function(x) multiF_stan(x, p))
 ll_r <- apply(x, 2, FUN = function(x) dmultinom(x = x, prob = p, log = TRUE))
 ll_r2 <- apply(x, 2, FUN = function(x) dmultinom_r(x = x, prob = p, log = TRUE))
 
@@ -200,9 +207,9 @@ par(mfrow = c(2, 3))
 plot(ll_tmb, ll_r, col = 2); abline(a = 0, b = 1); title(main = "TMB vs. R")
 plot(ll_tmb, ll_r2, col = 2); abline(a = 0, b = 1); title(main = "TMB vs. R (continuous)")
 plot(ll_tmb, ll_casal, col = 2); abline(a = 0, b = 1); title(main = "TMB vs. CASAL")
-plot(ll_tmb, ll_stan, col = 2); abline(a = 0, b = 1); title(main = "TMB vs. Stan")
 plot(ll_tmb, ll_a, col = 2); abline(a = 0, b = 1); title(main = "TMB vs. CCSBT age")
 plot(ll_tmb, ll_l, col = 2); abline(a = 0, b = 1); title(main = "TMB vs. CCSBT length")
+# plot(ll_tmb, ll_stan, col = 2); abline(a = 0, b = 1); title(main = "TMB vs. Stan")
 
 # Likelihood vs. pdf  for normal distribution ----
 
@@ -223,15 +230,45 @@ plot(ll1, ll2)
 # This is the CPUE likelihood
 # *cpue_resid = (log(cpue_obs) - cpue_log_pred) / cpue_sigma;
 # vector<Type> lp = log(cpue_sigma) + Type(0.5) * square(*cpue_resid);
-lnormalF <- function(x, mu, sigma) {
+lnormalF1 <- function(x, mu, sigma) {
   res <- (log(x) - log(mu)) / sigma
   lp <- log(sigma) + 0.5 * res^2
   sum(lp)
 }
 
-x <- matrix(rlnorm(n = 100 * 10, 1, 1), nrow = 100, ncol = 10)
+# template<class Type>
+#   Type dlnorm(Type x, Type meanlog, Type sdlog, int give_log) {
+#     Type resid = (log(x) - meanlog) / sdlog;
+#     Type logans = sdlog + Type(0.5) * square(resid);
+#     if (give_log) return logans;
+#     else return exp(logans);
+#   }
+# VECTORIZE4_ttti(dlnorm);
+# y = (log(x) - meanlog) / sdlog;
+# return (give_log ?
+#           -(M_LN_SQRT_2PI   + 0.5 * y * y + log(x * sdlog)) :
+#           M_1_SQRT_2PI * exp(-0.5 * y * y)  /	 (x * sdlog));
+lnormalF <- function(x, meanlog, sdlog, givelog = TRUE) {
+  res <- (log(x) - meanlog) / sdlog
+  if (givelog) {
+    M_LN_SQRT_2PI <- log(sqrt(2 * pi))
+    lp <- -(M_LN_SQRT_2PI + 0.5 * res^2 + log(x * sdlog))
+  } else {
+    M_1_SQRT_2PI <- 0.3989422804014327
+    lp <- M_1_SQRT_2PI * exp(-0.5 * res^2) / (x * sdlog)
+  }
+  return(lp)
+}
 
-ll1 <- apply(x, 1, FUN = function(x) lnormalF(x, 1, 1))
-ll2 <- apply(x, 1, FUN = function(x) sum(dlnorm(x, 1, 1, log = TRUE)))
+x <- matrix(rlnorm(n = 100 * 10, meanlog = log(2), sdlog = 0.1), nrow = 100, ncol = 10)
+hist(x)
 
+ll0 <- apply(x, 1, FUN = function(x) lnormalF1(x, 2, 0.1))
+ll1 <- apply(x, 1, FUN = function(x) sum(lnormalF(x, log(2), 0.1, T)))
+ll2 <- apply(x, 1, FUN = function(x) sum(dlnorm(x, meanlog = log(2), sdlog = 0.1, log = T)))
+
+sum(ll0 - ll1)
+sum(ll1 - ll2)
+
+plot(ll0, ll1)
 plot(ll1, ll2)

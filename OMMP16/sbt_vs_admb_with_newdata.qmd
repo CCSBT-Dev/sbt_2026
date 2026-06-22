@@ -1,0 +1,644 @@
+---
+title: "Comparison with the ADMB model"
+format:
+  html:
+    toc: true
+    lightbox: true
+vignette: >
+  %\VignetteIndexEntry{Comparison with the ADMB model}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+editor_options: 
+  chunk_output_type: console
+---
+  
+```{r}
+#| include: false
+library(knitr)
+opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+```{r}
+#| label: data-and-params
+#| echo: false
+#| message: false
+#| results: hide
+library(reshape2)
+library(tidyverse)
+library(sbt)
+library(kableExtra)
+library(testthat)
+
+theme_set(theme_bw())
+
+attach(data_csv1)
+lr <- data_labrep1
+
+data <- list(
+  last_yr = 2022, age_increase_M = 25,
+  length_m50 = 150, length_m95 = 180, 
+  catch_UR_on = 0, catch_surf_case = 1, catch_LL1_case = 1, 
+  scenarios_surf = scenarios_surface, scenarios_LL1 = scenarios_LL1,
+  sel_min_age_f = c(2, 2, 2, 8, 6, 0), 
+  sel_max_age_f = c(17, 9, 17, 22, 25, 7),
+  sel_end_f = c(1, 0, 1, 1, 1, 0),
+  sel_change_sd_fy = t(as.matrix(sel_change_sd[,-1])), 
+  sel_smooth_sd_f = lr$sel.smooth.sd,
+  pop_switch = 1, 
+  hsp_switch = 1, hsp_false_negative = 0.7467647, 
+  gt_switch = 1,
+  cpue_switch = 1, cpue_a1 = 5, cpue_a2 = 17,
+  aerial_switch = 4, aerial_tau = data_labrep1$tau.aerial, 
+  troll_switch = 0, 
+  lf_minbin = c(1, 1, 1, 11),
+  tag_switch = 1, tag_var_factor = 1.82
+)
+
+data <- get_data_v1(data_in = data)
+
+parameters <- list(
+  par_log_B0 = data_par1$ln_B0, par_log_psi = log(data_par1$psi),
+  par_log_m0 = log(data_par1$m0), par_log_m4 = log(data_par1$m4),
+  par_log_m10 = log(data_par1$m10), par_log_m30 = log(data_par1$m30),
+  par_log_h = log(data_par1$steep), par_log_sigma_r = log(lr$sigma.r), 
+  par_log_cpue_q = data_par1$lnq,
+  par_log_cpue_sigma = log(data_par1$sigma_cpue),
+  par_log_cpue_omega = log(data_par1$cpue_omega),
+  par_log_aerial_tau = log(data_par1$tau_aerial),
+  par_log_aerial_sel = data_par1$ln_sel_aerial,
+  par_log_troll_tau = log(data_par1$tau_troll),
+  par_log_hsp_q = data_par1$lnqhsp, 
+  par_logit_hstar_i = qlogis(exp(data_par1$par_log_hstar_i)),
+  par_log_tag_H_factor = log(data_par1$tag_H_factor),
+  par_rdev_y = data_par1$Reps,
+  par_sels_init_i = data_par1$par_sels_init_i, 
+  par_sels_change_i = data_par1$par_sels_change_i
+)
+
+get_bounds_v1 <- function(obj, parameters) {
+  Lwr <- rep(-Inf, length(obj$par))
+  Upr <- rep(Inf, length(obj$par))
+  Lwr[grep("par_log_m0", names(obj$par))] <- log(0.2) # These were the old M bounds
+  Upr[grep("par_log_m0", names(obj$par))] <- log(0.55)
+  Lwr[grep("par_log_m4", names(obj$par))] <- parameters$par_log_m10
+  Upr[grep("par_log_m4", names(obj$par))] <- log(0.333 * exp(parameters$par_log_m10) + 0.667 * exp(parameters$par_log_m0))
+  Lwr[grep("par_log_m10", names(obj$par))] <- log(0.029)
+  Upr[grep("par_log_m10", names(obj$par))] <- log(0.21)
+  Lwr[grep("par_log_m30", names(obj$par))] <- log(0.2)
+  Upr[grep("par_log_m30", names(obj$par))] <- log(0.7)
+  Upr[grep("par_log_troll_tau", names(obj$par))] <- log(0.4)
+  Lwr[grep("par_rdev_y", names(obj$par))] <- rep(-5, length(parameters$par_rdev_y))
+  Upr[grep("par_rdev_y", names(obj$par))] <- rep(5, length(parameters$par_rdev_y))
+  df <- data.frame(parameter = names(obj$par), init = obj$par, lower = Lwr, upper = Upr)
+  return(df)
+}
+```
+
+```{r}
+#| label: get-map
+#| echo: false
+#| message: false
+map <- list()
+map[["par_log_psi"]] <- factor(NA)
+map[["par_log_m0"]] <- factor(NA)
+map[["par_log_m10"]] <- factor(NA)
+map[["par_log_h"]] <- factor(NA)
+map[["par_log_sigma_r"]] <- factor(NA)
+map[["par_log_cpue_sigma"]] <- factor(NA)
+map[["par_log_cpue_omega"]] <- factor(NA)
+map[["par_log_aerial_tau"]] <- factor(NA)
+map[["par_log_aerial_sel"]] <- factor(rep(NA, 2))
+map[["par_log_hsp_q"]] <- factor(NA)
+map[["par_log_tag_H_factor"]] <- factor(NA)
+```
+
+```{r}
+#| label: build-obj
+#| echo: false
+#| message: false
+#| results: hide
+obj <- MakeADFun(func = cmb(sbt_model_v1, data), parameters = parameters, map = map)
+```
+
+# Introduction
+
+This vignette compares outputs from the Automatic Differentiation Model Builder 
+(ADMB) operating model (OM) to the `RTMB` OM within the 
+`sbt` package. This is done using a [fixed parameter](#fixed) run and then by 
+[optimising](#optim). In the fixed parameter run the parameter values from a single cell 
+of the ADMB model are used as fixed value inputs to `sbt` and outputs from `sbt` 
+are generated then compared to the ADMB outputs.
+
+# Fixed parameter run {#fixed}
+
+## Comparison table
+
+@tbl-comparison includes transformed parameters (i.e., in natural space), 
+derived quantities, priors, 
+penalties, likelihoods, and objective function values for the ADMB model, the RTMB 
+model, and the difference and percent difference between the two models.
+
+```{r}
+#| label: tbl-comparison
+#| echo: false
+#| message: false
+rp <- obj$report()
+
+Label <- c("B0", "psi", "sigmaR", "h", "q HSP", "m0", "m4", "m10", "m30", "R0", "alpha", "beta", "tau_ac2")
+
+df0 <- data.frame(
+  Label = Label,
+  ADMB = c(lr$B0, lr$psi, lr$sigma.r, lr$steep, lr$qhsp, lr$M[c(1, 5, 11, 31)], lr$R0[1], lr$alpha[1], lr$beta[1], lr$AC_penalty[2]),
+  TMB = c(rp$par_B0, rp$par_psi, rp$par_sigma_r, rp$par_h, rp$par_hsp_q, rp$par_m0, rp$par_m4, rp$par_m10, rp$par_m30, rp$R0, rp$alpha, rp$beta, rp$tau_ac2)) %>%
+  mutate(diff1 = ADMB - TMB) %>%
+  mutate(diff2 = abs(diff1 / ADMB) * 100) %>%
+  mutate(diff2 = ifelse(is.finite(diff2), diff2, 0))
+
+Label <- names(lr$penal)
+Label[13] <- "sel.init"
+
+df1 <- data.frame(
+  Label = Label,
+  ADMB = lr$penal,
+  TMB = c(0, rp$lp_sel[1:2], rp$lp_rec, 0, 0, 0, 0, 0, 0, 0, 0, rp$lp_sel[3], rp$lp_hstar)) %>%
+  mutate(diff1 = ADMB - TMB) %>%
+  mutate(diff2 = abs(diff1 / ADMB) * 100) %>%
+  mutate(diff2 = ifelse(is.finite(diff2), diff2, 0)) %>%
+  filter(Label != "NA")
+
+lp_lf <- data.frame(lp = rp$lp_lf, fishery = data$lf_fishery) %>%
+  group_by(fishery) %>%
+  summarise(lp = sum(lp))
+
+lp_af <- data.frame(lp = rp$lp_af, fishery = data$af_fishery) %>%
+  group_by(fishery) %>%
+  summarise(lp = sum(lp))
+
+df2 <- data.frame(
+  Label = c(names(lr$lnlike), "ObjF"),
+  ADMB = c(as.numeric(lr$lnlike), lr$ObjF),
+  TMB = c(lp_lf$lp, lp_af$lp, sum(rp$lp_cpue), sum(rp$lp_tags), sum(rp$lp_aerial) + rp$lp_aerial_tau, sum(rp$lp_troll), sum(rp$lp_pop), sum(rp$lp_hsp), sum(rp$lp_gt), rp$nll)) %>%
+  mutate(diff1 = ADMB - TMB) %>%
+  mutate(diff2 = abs(diff1 / ADMB) * 100) %>%
+  mutate(diff2 = ifelse(is.finite(diff2), diff2, 0))
+
+df <- bind_rows(df0, df1, df2)
+
+kbl(
+  x = df, 
+  col.names = c("", "ADMB", "RTMB", "Difference", "Percent difference"), 
+  caption = "Comparison of ADMB and RTMB model outputs including transformed parameters, derived quantities, priors, penalties, likelihoods, and objective function values.", 
+  digits = c(7, 7, 7, 7, 4)
+) %>%
+  kable_styling("bordered") %>%
+  column_spec(column = 5, color = "white", background = spec_color(df$diff2)) %>%
+  group_rows("Parameters", 1, 9) %>%
+  group_rows("Derived quantities", 10, 13) %>%
+  group_rows("Priors & penalties", 14, 24) %>%
+  group_rows("Likelihoods & objective function", 25, nrow(df))
+```
+
+## Comparison figures
+
+The following figures compare outputs from the ADMB and RTMB models:
+average weight at age (@fig-plot-weight), natural mortality at age (@fig-plot-M),
+initial numbers at age (@fig-plot-init), recruitment deviates (@fig-plot-rec-devs),
+recruitment (@fig-plot-recs), total numbers (@fig-plot-N),
+spawning biomass (@fig-plot-sbio), CPUE (@fig-plot-cpue),
+phi at age (@fig-phi-age), selectivity at age (@fig-sel-compare),
+and age-frequency observations and predictions (@fig-af-obs, @fig-af-pred).
+
+```{r}
+#| label: define-function
+#| echo: false
+#| message: false
+plot_compare <- function(x, ADMB, sbt, xlab, ylab) {
+  data.frame(x = x, ADMB = ADMB, sbt = sbt) %>%
+    pivot_longer(cols = ADMB:sbt, names_to = "Model") %>%
+    ggplot(aes(x = x, y = value, colour = Model, linetype = Model)) +
+    geom_line() + 
+    labs(x = xlab, y = ylab) +
+    scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.05)))
+}
+```
+
+```{r}
+#| label: fig-plot-weight
+#| echo: false
+#| message: false
+#| fig-cap: Average weight (kg) at age.
+plot_compare(x = 0:30, ADMB = lr$spweights.age[1,], sbt = data$weight_fya[3,1,], 
+             xlab = "Age", ylab = "Weight (kg)")
+```
+
+```{r}
+#| label: fig-plot-M
+#| echo: false
+#| message: false
+#| fig-cap: Natural mortality (M) at age.
+plot_compare(x = 0:30, ADMB = lr$M, sbt = rp$M_a, xlab = "Age", ylab = "Natural mortality (M)")
+```
+
+```{r}
+#| label: fig-plot-init
+#| echo: false
+#| message: false
+#| fig-cap: Initial numbers at age in the population.
+num <- rp$number_ysa
+plot_compare(x = 0:30, ADMB = lr$Ns[1,] / 1e6, sbt = num[1,1,] / 1e6, xlab = "Age", ylab = "Initial numbers (millions)")
+```
+
+```{r}
+#| label: fig-plot-rec-devs
+#| echo: false
+#| message: false
+#| fig-cap: Recruitment deviates each year.
+plot_compare(x = 1931:2022, ADMB = lr$Rdev, sbt = rp$rdev_y, xlab = "Year", ylab = "Recruitment deviates") +
+  scale_y_continuous(limits = c(NA, NA))
+```
+
+```{r}
+#| label: fig-plot-recs
+#| echo: false
+#| message: false
+#| fig-cap: Recruitment each year.
+plot_compare(x = 1931:2023, ADMB = lr$Recruitment / 1e6, 
+             sbt = rp$recruitment_y / 1e6,
+             # sbt = num[,1,1] / 1e6,
+             xlab = "Year", ylab = "Recruitment (million)")
+```
+
+```{r}
+#| label: fig-plot-N
+#| echo: false
+#| message: false
+#| fig-cap: Total number of inidividuals each year.
+plot_compare(x = 1931:2023, ADMB = rowSums(lr$Ns), sbt = rowSums(num[,1,]), xlab = "Year", ylab = "Total number")
+```
+
+```{r}
+#| label: fig-plot-sbio
+#| echo: false
+#| message: false
+#| fig-cap: Spawning biomass (tonnes).
+plot_compare(x = 1931:2023, ADMB = lr$Sbio / 1e6, sbt = rp$spawning_biomass_y / 1e6, 
+             xlab = "Year", ylab = "Spawning biomass (millions of tonnes)")
+```
+
+```{r}
+#| label: fig-plot-cpue
+#| echo: false
+#| message: false
+#| fig-cap: Catch per unit effort (CPUE).
+plot_compare(x = data$cpue_years + data$first_yr, ADMB = lr$cpue.pred, sbt = rp$cpue_pred, xlab = "Year", ylab = "CPUE")
+```
+
+```{r}
+#| label: fig-phi-age
+#| echo: false
+#| message: false
+#| fig-cap: Phi at age for a subset of years.
+yrs <- c(1952, seq(1960, 2020, 10), 2022)
+
+x1 <- melt(lr$phi) %>%
+  mutate(year = c(1931:2022)[Var2], Age = Var1 - 1) %>%
+  filter(year %in% yrs)
+
+x2 <- melt(rp$phi_ya) %>%
+  mutate(year = c(1931:2022)[Var1], Age = Var2 - 1) %>%
+  filter(year %in% yrs)
+
+ggplot(data = x1, aes(x = Age, y = value)) +
+  geom_line() +
+  geom_line(data = x2, color = "red", linetype = "dashed") +
+  facet_wrap(year ~ .) +
+  labs(y = "Phi") +
+  scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.05)))
+```
+
+```{r}
+#| label: fig-sel-compare
+#| echo: false
+#| message: false
+#| fig-height: 10
+#| fig-cap: Selectivity at age for a subset of years.
+yrs <- c(1952, seq(1960, 2020, 10), 2022)
+
+x1 <- data.frame(lr$sel) %>%
+  rename(fishery = X1, year = X2) %>%
+  pivot_longer(cols = starts_with("X"), names_to = "Age") %>%
+  mutate(Age = as.numeric(gsub("X", "", Age)) - 3) %>%
+  filter(year %in% yrs)
+
+x2 <- rp$sel_fya %>%
+  melt() %>%
+  rename(fishery = Var1) %>%
+  mutate(year = c(1931:2022)[Var2], Age = Var3 - 1) %>%
+  filter(year %in% yrs)
+
+ggplot(data = x1, aes(x = Age, y = value)) +
+  geom_line() +
+  geom_line(data = x2, color = "red", linetype = "dashed") +
+  facet_grid(year ~ fishery) +
+  labs(y = "Selectivity") +
+  scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.05)))
+```
+
+There was a reason why the LF observations are different 
+(@fig-lf-obs) but I cannot remember why. Must be something to do 
+with post processing in the code as the likelihoods are the same.
+
+```{r}
+#| label: fig-lf-obs
+#| echo: false
+#| message: false
+#| fig-height: 10
+#| fig-cap: LF observations for a subset of years.
+yrs <- c(1952, seq(1960, 2020, 10), 2022)
+
+df1 <- data.frame(data_labrep1$len.obs) %>%
+  rename(fishery = X1, year = X2) %>%
+  pivot_longer(starts_with("X")) %>% 
+  mutate(length = parse_number(name) - 2)
+
+oo <- data$lf_obs
+colnames(oo) <- NULL
+df2 <- data.frame(fishery = data$lf_fishery, year = data$lf_year + data$first_yr, oo) %>%
+  pivot_longer(starts_with("X")) %>% 
+  mutate(length = parse_number(name))
+
+ggplot(data = df1 %>% filter(year %in% yrs), aes(x = length, y = value)) +
+  geom_line() +
+  geom_line(data = df2 %>% filter(year %in% yrs), colour = "red", linetype = "dashed") +
+  facet_grid(year ~ fishery) +
+  labs(x = "Length (cm)") +
+  scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.05)))
+```
+
+```{r}
+#| label: fig-af-obs
+#| echo: false
+#| message: false
+#| fig-height: 10
+#| fig-cap: AF observations for a subset of years.
+yrs <- c(1964, seq(1995, 2020, 5), 2022)
+
+df5 <- data.frame(data_labrep1$age.obs.1) %>%
+  rename(fishery = X1, year = X2) %>%
+  pivot_longer(starts_with("X")) %>% 
+  mutate(age = parse_number(name) - 3 + 6)
+df6 <- data.frame(data_labrep1$age.obs.2) %>%
+  rename(fishery = X1, year = X2) %>%
+  pivot_longer(starts_with("X")) %>% 
+  mutate(age = parse_number(name) - 3)
+df1 <- rbind(df5, df6) %>% select(-name)
+
+io <- data$af_obs
+colnames(io) <- NULL
+df2 <- data.frame(fishery = data$af_fishery, year = data$af_year + data$first_yr, io) %>%
+  pivot_longer(starts_with("X")) %>% 
+  mutate(age = parse_number(name) - 1) %>% 
+  select(-name)
+
+dfa <- full_join(df1, df2, by = join_by(fishery, year, age)) %>%
+  relocate(fishery, year, age) %>%
+  arrange(fishery, year, age) %>%
+  filter(!is.na(value.x))
+# sum((dfa$value.x - dfa$value.y)^2)
+
+ggplot(data = df1 %>% filter(year %in% yrs), aes(x = age, y = value)) +
+  geom_line() +
+  geom_line(data = df2 %>% filter(year %in% yrs), colour = "red", linetype = "dashed") +
+  facet_grid(year ~ fishery) +
+  labs(x = "Age") +
+  scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.05)))
+```
+
+```{r}
+#| label: fig-af-pred
+#| echo: false
+#| message: false
+#| fig-cap: AF predictions for a subset of years.
+#| fig-height: 10
+yrs <- c(1964, seq(1995, 2020, 5), 2022)
+
+df5 <- data.frame(data_labrep1$age.pred_1) %>%
+  rename(fishery = X1, year = X2) %>%
+  pivot_longer(starts_with("X")) %>% 
+  mutate(age = parse_number(name) - 3 + 6)
+df6 <- data.frame(data_labrep1$age.pred_2) %>%
+  rename(fishery = X1, year = X2) %>%
+  pivot_longer(starts_with("X")) %>% 
+  mutate(age = parse_number(name) - 3)
+df1 <- rbind(df5, df6) %>% select(-name)
+
+df2 <- data.frame(fishery = data$af_fishery, year = data$af_year + data$first_yr, obj$report()$af_pred) %>%
+  pivot_longer(starts_with("X")) %>% 
+  mutate(age = parse_number(name) - 1) %>% 
+  select(-name)
+
+dfa <- full_join(df1, df2, by = join_by(fishery, year, age)) %>%
+  relocate(fishery, year, age) %>%
+  arrange(fishery, year, age) %>%
+  filter(!is.na(value.x))
+
+# range(dfa$value.x - dfa$value.y)
+
+ggplot(data = df1 %>% filter(year %in% yrs), aes(x = age, y = value)) +
+  geom_line() +
+  geom_line(data = df2 %>% filter(year %in% yrs), colour = "red", linetype = "dashed") +
+  facet_grid(year ~ fishery) +
+  labs(x = "Age") +
+  scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.05)))
+```
+
+# Optimising {#optim}
+
+```{r}
+#| label: run-nlminb
+#| echo: false
+#| results: hide
+bnd <- get_bounds_v1(obj, parameters)
+control <- list(eval.max = 10000, iter.max = 10000)
+# opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, hessian = obj$he,
+#               lower = bnd$lower, upper = bnd$upper, control = control)
+# opt <- nlminb(start = opt$par, objective = obj$fn, gradient = obj$gr, hessian = obj$he,
+#               lower = bnd$lower, upper = bnd$upper, control = control)
+# save(obj, file = "inst/extdata/admb.rda")
+load(system.file("extdata", "admb.rda", package = "sbt"))
+```
+
+The `sbt` model was optimised using `nlminb` to see if `RTMB` produces the same result.
+The `nlminb` function finds the same optimum as ADMB (@fig-plot-compare-optim).
+
+```{r}
+#| label: fig-plot-compare-optim
+#| echo: false
+#| message: false
+#| fig-cap: Spawning biomass (tonnes).
+rp <- obj$report()
+# sdr <- sdreport(obj = obj, getJointPrecision = TRUE)
+# he <- obj$he()
+# he_inv <- solve(he)
+# he_inv[1:3, 1:3]
+# c2 <- cov2cor(he_inv)
+# range(sqrt(diag(he_inv)))
+# ii <- which(sqrt(diag(he_inv)) > 21)
+# names(obj$par)[ii]
+# he_inv[ii]
+# he_ch <- chol(he)
+# ev <- eigen(he)
+# range(ev$values)
+# ce <- check_estimability(obj = obj)
+# ce[[4]] %>% filter(Param_check != "OK")
+# obj$par[1:10]
+# obj$report()$spawning_biomass_y
+# opt$par[1:10]
+# obj$par <- opt$par
+plot_compare(x = 1931:2023, ADMB = lr$Sbio / 1e6, sbt = rp$spawning_biomass_y / 1e6, 
+             xlab = "Year", ylab = "Spawning biomass (millions of tonnes)")
+```
+
+# Grid {#grid}
+
+Checking the grid.
+
+```{r}
+#| label: fig-grid
+#| echo: false
+#| message: false
+#| fig-cap: Grid.
+run_grid_v1 <- function(data, grid_parameters, bounds, map = list(), random = c(), control = list(eval.max = 10000, iter.max = 10000), parallel = FALSE, n_passes = 3) {
+  n_grid <- length(grid_parameters)
+  grid_obj <- vector("list", length = n_grid)
+  for (i in seq_len(n_grid)) {
+    obj <- MakeADFun(func = cmb(sbt_model_v1, data), parameters = grid_parameters[[i]], map = map, random = random)
+    opt <- NULL
+    start <- obj$par
+    for (pass in seq_len(n_passes)) {
+      opt <- nlminb(start = start, objective = obj$fn, gradient = obj$gr, hessian = obj$he, lower = bounds$lower, upper = bounds$upper, control = control)
+      start <- opt$par
+      if (opt$convergence == 0) break
+    }
+    obj$par <- opt$par
+    obj$env$last.par.best <- opt$par
+    obj$fn(opt$par)
+    obj$opt <- opt
+    grid_obj[[i]] <- obj
+    message("Done: ", i, " of ", n_grid, ". Converged: ", opt$convergence == 0, ". Code: ", opt$convergence, ". Objective: ", opt$objective)
+  }
+  names(grid_obj) <- names(grid_parameters)
+  return(grid_obj)
+}
+
+sample_grid_v1 <- function(grid, n_samples = 2000, prior_h = NULL, prior_psi = c(0.25, 0.5, 0.25), seed = NULL) {
+  n_grid <- length(grid)
+  gdf <- matrix(NA, nrow = n_grid, ncol = 5)
+  colnames(gdf) <- c("nll", "m0", "m10", "h", "psi")
+  pb <- txtProgressBar(min = 1, max = n_grid, style = 3)
+  
+  for (i in 1:n_grid) {
+    rep <- grid[[i]]$report()
+    gdf[i, 1] <- grid[[i]]$fn()
+    gdf[i, 2] <- rep$par_m0
+    gdf[i, 3] <- rep$par_m10
+    gdf[i, 4] <- rep$par_h
+    gdf[i, 5] <- rep$par_psi
+    setTxtProgressBar(pb, i)
+  }
+  
+  gdf <- data.frame(gdf) %>% 
+    mutate(ll = -(nll - min(nll)))
+  
+  # Create default uniform priors if none are provided
+  unique_h <- unique(gdf$h)
+  if (is.null(prior_h)) {
+    prior_h <- rep(1 / length(unique_h), length(unique_h))
+  }
+  df_prior_h <- tibble(h = unique_h, w_h = as.numeric(prior_h))
+  unique_psi <- unique(gdf$psi)
+  if (is.null(prior_psi)) {
+    prior_psi <- rep(1 / length(unique_psi), length(unique_psi))
+  }
+  df_prior_psi <- tibble(psi = unique_psi, w_psi = as.numeric(prior_psi))
+  
+  # Calculate cell probabilities using both group likelihoods and prior weights
+  df <- gdf %>%
+    summarise(sum_exp_ll = sum(exp(ll)), .by = c(h, psi)) %>%
+    full_join(gdf, by = join_by(h, psi)) %>%
+    left_join(df_prior_h, by = join_by(h)) %>%
+    left_join(df_prior_psi, by = join_by(psi)) %>%
+    mutate(prob = w_h * w_psi * (exp(ll) / sum_exp_ll))
+  
+  if (!is.null(seed)) {
+    set.seed(seed)
+  }
+  grid_ints <- sample(x = 1:n_grid, size = n_samples, replace = TRUE, prob = df$prob)
+  
+  grid_freq <- gdf %>% 
+    mutate(grid_ints = as.factor(1:n())) %>% 
+    left_join(data.frame(table(grid_ints)), by = join_by(grid_ints)) %>%
+    mutate(Freq = ifelse(is.na(Freq), 0, Freq)) %>%
+    mutate(Cell = as.integer(grid_ints)) %>%
+    relocate(Cell) %>%
+    select(-grid_ints) %>%
+    tibble()
+  
+  return(list(grid_cells = grid_ints, grid_freq = grid_freq))
+}
+
+grid_to_tmbfit_v1 <- function(data, parameters, grid, grid_parameters, grid_cells) {
+  # map <- get_map(parameters = parameters)
+  map <- list()
+  map[["par_log_psi"]] <- factor(NA)
+  map[["par_log_m0"]] <- factor(NA)
+  map[["par_log_m10"]] <- factor(NA)
+  map[["par_log_h"]] <- factor(NA)
+  map[["par_log_sigma_r"]] <- factor(NA)
+  map[["par_log_cpue_sigma"]] <- factor(NA)
+  map[["par_log_cpue_omega"]] <- factor(NA)
+  map[["par_log_aerial_tau"]] <- factor(NA)
+  map[["par_log_aerial_sel"]] <- factor(rep(NA, 2))
+  map[["par_log_hsp_q"]] <- factor(NA)
+  map[["par_log_tag_H_factor"]] <- factor(NA)
+  map$par_log_psi <- NULL
+  map$par_log_m0 <- NULL
+  map$par_log_m10 <- NULL
+  map$par_log_h <- NULL
+  obj <- MakeADFun(func = cmb(sbt_model_v1, data), parameters = parameters, map = map)
+  parnames <- names(obj$par)
+  n_samples <- length(grid_cells$grid_cells)
+  samples <- array(dim = c(n_samples, 1, length(obj$par)), dimnames = list(NULL, NULL, parnames))
+  for (i in 1:n_samples) {
+    j <- grid_cells$grid_cells[i]
+    # obj$env$parList() alternatively could use this below?
+    samples[i, 1,] <- c(grid[[j]]$par[1], # par_log_B0
+                        grid_parameters[[j]]$par_log_psi, 
+                        grid_parameters[[j]]$par_log_m0, 
+                        grid[[j]]$par[2], # par_log_m4
+                        grid_parameters[[j]]$par_log_m10,
+                        grid[[j]]$par[3], # par_log_m30
+                        grid_parameters[[j]]$par_log_h,
+                        grid[[j]]$par[-c(1:3)])
+  }
+  # getS3method("print", "tmbfit")
+  # Create tmbfit object
+  x <- list(samples = samples, sampler_params = list(), mle = NULL,
+            monitor = NULL, model = "RTMB", metric = "", par_names = parnames, 
+            max_treedepth = NA, warmup = 0, iter = n_samples, thin = 1, 
+            time.warmup = 0, time.sampling = NA, time.total = NA, algorithm = "grid")
+  class(x) <- c("tmbfit", "list")
+  return(x)
+}
+
+grid_pars <- get_grid(parameters = parameters, h = c(0.63, 0.72), psi = c(1.75))
+grid_list <- run_grid_v1(data = data, grid_parameters = grid_pars, bounds = bnd, map = map, control = control, parallel = FALSE)
+# # grid_check <- check_grid(grid = grid_list)
+grid_cells <- sample_grid_v1(grid = grid_list, seed = 42, prior_psi = c(1))
+grid_tmbfit <- grid_to_tmbfit_v1(data = data, parameters = parameters, grid = grid_list, grid_parameters = grid_pars, grid_cells = grid_cells)
+save(grid_tmbfit, file = "inst/extdata/grid_old.rda")
+
+load(system.file("extdata", "grid_old.rda", package = "sbt"))
+barplot(table(exp(grid_tmbfit$samples[,,'par_log_m0'])), xlab = 'm0')
+barplot(table(factor(exp(grid_tmbfit$samples[,,'par_log_m10']), levels = c(0.065, 0.085, 0.105))), xlab = 'm10')
+```

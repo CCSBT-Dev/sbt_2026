@@ -9,11 +9,16 @@ format:
     theme: cosmo
     code-fold: true
     code-tools: true
+execute:
+  warning: false
+  message: false    
 editor_options: 
   chunk_output_type: console
 ---
 
-# Load inputs
+# Setting up the model
+
+## Load inputs
 
 The `sbt` RTMB model is loaded along with several R functions using 
 `library(sbt)`. The `tidyverse` and `reshape2` packages are used for data 
@@ -284,6 +289,15 @@ check_estimability(obj = obj)
 # ce[[4]] %>% filter(Param_check != "OK")
 ```
 
+```{r}
+#| label: prof-m10
+#| cache: true
+# ytol <- 9
+# prof_m0 <- sbtprofile(obj = obj, name = "par_log_m0", ytol = ytol)
+# prof_m10 <- sbtprofile(obj = obj, name = "par_log_m10", ytol = ytol)
+# plot_profile(obj = obj, x = prof_m4, xlab = "M4")
+```
+
 # Model fits
 
 Model fit to CPUE (@fig-cpue-fit) and the aerial surveys (@fig-aerial-fit).
@@ -294,24 +308,24 @@ the Australian fleet (@fig-plot-Aus).
 
 ```{r}
 #| label: fig-cpue-fit
-#| echo: true
-#| message: false
 #| fig-cap: Model fits to CPUE.
 plot_cpue(data = data, object = obj, nsim = 10)
 ```
 
 ```{r}
+#| label: fig-osa-resid
+#| fig-cap: One step ahead (OSA) residuals.
+plot_cpue_residuals(data = data, obj = obj, type = "OSA")
+```
+
+```{r}
 #| label: fig-aerial-fit
-#| echo: true
-#| message: false
 #| fig-cap: Model fits to aerial surveys.
 plot_aerial_survey(data = data, object = obj, nsim = 10)
 ```
 
 ```{r}
 #| label: fig-plot-LL1
-#| echo: true
-#| message: false
 #| fig-height: 14
 #| fig-cap: Model fits to LL1 length frequencies.
 plot_lf(data = data, object = obj, fishery = "LL1", ncol = 5)
@@ -319,8 +333,6 @@ plot_lf(data = data, object = obj, fishery = "LL1", ncol = 5)
 
 ```{r}
 #| label: fig-plot-LL2
-#| echo: true
-#| message: false
 #| fig-height: 8
 #| fig-cap: Model fits to LL2 length frequencies.
 plot_lf(data = data, object = obj, fishery = "LL2", ncol = 5)
@@ -328,8 +340,6 @@ plot_lf(data = data, object = obj, fishery = "LL2", ncol = 5)
 
 ```{r}
 #| label: fig-plot-LL3
-#| echo: true
-#| message: false
 #| fig-height: 14
 #| fig-cap: Model fits to LL3 length frequencies.
 plot_lf(data = data, object = obj, fishery = "LL3", ncol = 5)
@@ -337,8 +347,6 @@ plot_lf(data = data, object = obj, fishery = "LL3", ncol = 5)
 
 ```{r}
 #| label: fig-plot-LL4
-#| echo: true
-#| message: false
 #| fig-height: 9
 #| fig-cap: Model fits to LL4 length frequencies.
 plot_lf(data = data, object = obj, fishery = "LL4", ncol = 5)
@@ -346,8 +354,6 @@ plot_lf(data = data, object = obj, fishery = "LL4", ncol = 5)
 
 ```{r}
 #| label: fig-plot-Indo
-#| echo: true
-#| message: false
 #| fig-height: 8
 #| fig-cap: Model fits to Indonesian age compositions.
 plot_af(data = data, object = obj, fishery = "Indonesian")
@@ -355,16 +361,10 @@ plot_af(data = data, object = obj, fishery = "Indonesian")
 
 ```{r}
 #| label: fig-plot-Aus
-#| echo: true
-#| message: false
 #| fig-height: 10
 #| fig-cap: Model fits to Australian age compositions.
 plot_af(data = data, object = obj, fishery = "Australian")
 ```
-
-I think that not all of the catch is being taken for LL4 because there are years 
-where there is catch but no LFs but we've set this fishery to direct removals 
-(@fig-catch-fit, @fig-catch-resid).
 
 ```{r}
 #| label: fig-catch-fit
@@ -380,19 +380,6 @@ plot_catch(data = data, object = obj)
 #| message: false
 #| fig-cap: Catch residuals.
 plot_catch(data = data, object = obj, plot_resid = TRUE)
-```
-
-# One step ahead (OSA) residuals
-
-One step ahead (OSA) residuals are a replacement for Pearson residuals 
-(@fig-osa-resid).
-
-```{r}
-#| label: fig-osa-resid
-#| echo: true
-#| message: false
-#| fig-cap: One step ahead (OSA) residuals.
-plot_cpue_residuals(data = data, obj = obj, type = "OSA")
 ```
 
 ## Derived quantities

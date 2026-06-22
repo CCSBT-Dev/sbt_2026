@@ -7,7 +7,7 @@ rm(list = ls())
 # remotes::install_github("noaa-afsc/SparseNUTS")
 # remotes::install_github(repo = "quantifish/sbt")
 
-setwd(file.path(getwd(), "OMMP16"))
+# setwd(file.path(getwd(), "OMMP16"))
 
 library(tidyverse)
 library(sbt)
@@ -26,7 +26,8 @@ catch <- read_csv(file.path(data_loc, "catch.csv"))
 catch_UA <- read_csv(file.path(data_loc, "catch_UA.csv"))
 scenarios_surface <- read_csv(file.path(data_loc, "scenarios_surface.csv"))
 scenarios_LL1 <- read_csv(file.path(data_loc, "scenarios_LL1.csv"))
-POPs <- read_csv(file.path(data_loc, "POPs.csv"))
+# POPs <- read_csv(file.path(data_loc, "POPs.csv"))
+POPs <- read_csv("POPs_test.csv")
 HSPs <- read_csv(file.path(data_loc, "HSPs.csv"))
 GTs <- read_csv(file.path(data_loc, "GTs.csv"))
 troll <- read_csv(file.path(data_loc, "trolling_index.csv"))
@@ -54,11 +55,11 @@ data <- list(
   sel_CPUE_yrs = c(1969, 1973, 1977, 1981, 1985, 1989, 1993, 1997, 2001, 2006, 2007, 2008, 2011, 2014, 2017, 2020),
   # af_switch = 9,
   # af_switch = 1, # CAUSES ISSUES WHY?
-  af_switch = 2, # 1=multinomial, 2=Dirichlet, 3=Dirichlet-multinomial, 9=old
-  lf_switch = 2, lf_minbin = c(1, 1, 1, 11),
+  af_switch = 9, # 1=multinomial, 2=Dirichlet, 3=Dirichlet-multinomial, 9=old
+  lf_switch = 9, lf_minbin = c(1, 1, 1, 11),
   cpue_switch = 1, cpue_a1 = 5, cpue_a2 = 17,
   aerial_switch = 4, aerial_tau = 0.3, 
-  troll_switch = 1, 
+  troll_switch = 0, 
   pop_switch = 1, 
   hsp_switch = 1, 
   hsp_false_negative = 0.6840729, # If I set the hsp false negative to 1 and af_switch = 9 then model OK
@@ -197,8 +198,11 @@ df
 # Parameters ----
 
 parameters <- get_parameters(data = data)
-exp(parameters$par_log_h)
 parameters$par_log_h <- log(0.8)
+
+exp(parameters$par_log_h)
+exp(parameters$par_log_af_alpha)
+exp(parameters$par_log_lf_alpha)
 
 map <- get_map(parameters = parameters)
 # map$par_log_af_alpha <- NULL
@@ -260,27 +264,28 @@ do_run <- FALSE
 
 if (do_run) {
   # grid_pars <- get_grid(parameters = parameters, m0 = c(0.4), m10 = c(0.065), h = c(0.8), psi = c(1.5, 1.75, 2))
-  grid_pars <- get_grid(parameters = parameters)
+  grid_pars <- get_grid(parameters = parameters, h = c(0.8), psi = c(1.75))
   grid_list <- run_grid(data = data, grid_parameters = grid_pars, bounds = bounds, map = map, control = control, parallel = FALSE)
   grid_check <- check_grid(grid = grid_list)
   # if some grid cells have not converged then you can run them again using rerun_grid
   # idc <- which(grid_check$grid_summary$Check != "All parameters are estimable")
   # grid_list <- rerun_grid(grid = grid_list, bounds = bounds, cells = idc, control = control) # this crashes my machine
-  grid_cells <- sample_grid(grid = grid_list, seed = 42)
+  grid_cells <- sample_grid(grid = grid_list, seed = 42, prior_psi = c(1))
   grid_tmbfit <- grid_to_tmbfit(data = data, parameters = parameters, grid = grid_list, grid_parameters = grid_pars, grid_cells = grid_cells)
+  save(grid_pars, grid_list, grid_check, grid_cells, grid_tmbfit, file = "grid_run4.rda")
   # save_grid(grid = grid_list, dir = "inst/extdata/grid_list", overwrite = TRUE, compress = "gzip")
-  save(grid_pars, file = "inst/extdata/grid_pars.rda")
-  save(grid_list, file = "inst/extdata/grid_list.rda")
-  save(grid_check, file = "inst/extdata/grid_check.rda")
-  save(grid_cells, file = "inst/extdata/grid_cells.rda")
-  save(grid_tmbfit, file = "inst/extdata/grid_tmbfit.rda")
+  # save(grid_pars, file = "inst/extdata/grid_pars.rda")
+  # save(grid_list, file = "inst/extdata/grid_list.rda")
+  # save(grid_check, file = "inst/extdata/grid_check.rda")
+  # save(grid_cells, file = "inst/extdata/grid_cells.rda")
+  # save(grid_tmbfit, file = "inst/extdata/grid_tmbfit.rda")
 } else {
-  load(system.file("extdata", "grid_pars.rda", package = "sbt"))
-  # grid_list <- load_grid(dir = "inst/extdata/grid_list")
-  load(system.file("extdata", "grid_list.rda", package = "sbt"))
-  load(system.file("extdata", "grid_check.rda", package = "sbt"))
-  load(system.file("extdata", "grid_cells.rda", package = "sbt"))
-  load(system.file("extdata", "grid_tmbfit.rda", package = "sbt"))
+  # load(system.file("extdata", "grid_pars.rda", package = "sbt"))
+  # # grid_list <- load_grid(dir = "inst/extdata/grid_list")
+  # load(system.file("extdata", "grid_list.rda", package = "sbt"))
+  # load(system.file("extdata", "grid_check.rda", package = "sbt"))
+  # load(system.file("extdata", "grid_cells.rda", package = "sbt"))
+  # load(system.file("extdata", "grid_tmbfit.rda", package = "sbt"))
 }
 
 length(grid_pars) # 108

@@ -1,0 +1,540 @@
+---
+title: "OMMP16"
+format:
+  html:
+    embed-resources: true
+    toc: true
+    toc-location: left
+    lightbox: true
+    theme: cosmo
+    code-fold: true
+    code-tools: true
+editor_options: 
+  chunk_output_type: console
+---
+
+# Load inputs
+
+The `sbt` RTMB model is loaded along with several R functions using 
+`library(sbt)`. The `tidyverse` and `reshape2` packages are used for data 
+manipulation and plotting. The code `theme_set(theme_bw())` alters the plot 
+aesthetics of the entire article:
+
+```{r}
+#| label: load-pkg
+# remotes::install_github("janoleko/RTMBdist")
+# remotes::install_github("andrjohns/StanEstimators")
+# remotes::install_github("noaa-afsc/SparseNUTS")
+
+library(tidyverse)
+library(sbt)
+library(SparseNUTS)
+library(bayesplot)
+
+theme_set(theme_bw())
+
+data_loc <- "csv_2026"
+
+length_mean <- read_csv(file.path(data_loc, "mean_length.csv"))
+length_sd <- read_csv(file.path(data_loc, "sd_length.csv"))
+catch <- read_csv(file.path(data_loc, "catch.csv"))
+catch_UA <- read_csv(file.path(data_loc, "catch_UA.csv"))
+scenarios_surface <- read_csv(file.path(data_loc, "scenarios_surface.csv"))
+scenarios_LL1 <- read_csv(file.path(data_loc, "scenarios_LL1.csv"))
+POPs <- read_csv(file.path(data_loc, "POPs.csv"))
+HSPs <- read_csv(file.path(data_loc, "HSPs.csv"))
+GTs <- read_csv(file.path(data_loc, "GTs.csv"))
+troll <- read_csv(file.path(data_loc, "trolling_index.csv"))
+cpue <- read_csv(file.path(data_loc, "cpue.csv"))
+age_freq <- read_csv(file.path(data_loc, "age_freq.csv"))
+length_freq <- read_csv(file.path(data_loc, "lf_assessment.csv")) # this is the new version from Jim with the CPUE LFs
+
+data <- list(
+  last_yr = 2025, age_increase_M = 25,
+  length_m50 = 150, length_m95 = 180, 
+  catch_UR_on = 0, catch_surf_case = 1, catch_LL1_case = 1, 
+  scenarios_surf = scenarios_surface, scenarios_LL1 = scenarios_LL1,
+  removal_switch_f = c(0, 0, 0, 1, 0, 0), # 0=harvest rate, 1=direct removals
+  # removal_switch_f = c(0, 0, 0, 0, 0, 0), # 0=harvest rate, 1=direct removals
+  sel_min_age_f = c(2, 2, 2, 8, 6, 0, 2),
+  # sel_max_age_f = c(17, 9, 17, 22, 25, 7, 17),
+  sel_max_age_f = c(17, 9, 17, 21, 25, 7, 17),
+  sel_end_f = c(1, 0, 1, 1, 1, 0, 1), # 0=zero, 1=constant
+  sel_LL1_yrs = c(1952, 1957, 1961, 1965, 1969, 1973, 1977, 1981, 1985, 1989, 1993, 1997, 2001, 2006, 2007, 2008, 2011, 2014, 2017, 2020, 2023),
+  sel_LL2_yrs = c(1969, 2001, 2005, 2008, 2011, 2014, 2017, 2020),
+  sel_LL3_yrs = c(1954, 1961, 1965, 1969, 1970, 1971, 2005, 2006, 2007),
+  sel_LL4_yrs = c(1953),
+  sel_Ind_yrs = c(1976, 1995, 1997, 1999, 2002, 2004, 2006, 2008, 2010, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023),
+  sel_Aus_yrs = c(1952, 1969, 1973, 1977, 1981, 1985, 1989, 1993, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023),
+  sel_CPUE_yrs = c(1969, 1973, 1977, 1981, 1985, 1989, 1993, 1997, 2001, 2006, 2007, 2008, 2011, 2014, 2017, 2020),
+  # af_switch = 9,
+  # af_switch = 1, # CAUSES ISSUES WHY?
+  af_switch = 2, # 1=multinomial, 2=Dirichlet, 3=Dirichlet-multinomial, 9=old
+  lf_switch = 2, lf_minbin = c(1, 1, 1, 11),
+  cpue_switch = 1, cpue_a1 = 5, cpue_a2 = 17,
+  aerial_switch = 4, aerial_tau = 0.3, 
+  troll_switch = 1, 
+  pop_switch = 1, 
+  hsp_switch = 1, 
+  hsp_false_negative = 0.6840729, # If I set the hsp false negative to 1 and af_switch = 9 then model OK
+  gt_switch = 1,
+  tag_switch = 1, tag_var_factor = 1.82
+)
+
+data <- get_data(data_in = data)
+
+# Need to fix LFs ----
+
+repair_af_slices_weighted <- function(catch_ysf,
+                                      af_ysfa,
+                                      N = 3L,
+                                      p = 1,
+                                      eps = 1e-12,
+                                      expand_if_empty = TRUE,
+                                      verbose = TRUE) {
+  # af_ysfa is assumed [year, season, fishery, age]
+  d_af <- dim(af_ysfa)
+  stopifnot(length(d_af) == 4)
+  n_y <- d_af[1]; n_s <- d_af[2]; n_f <- d_af[3]; n_a <- d_af[4]
+  
+  d_c <- dim(catch_ysf)
+  stopifnot(length(d_c) == 3)
+  
+  # map catch dims to y/s/f by matching sizes in af
+  map_dim <- function(target, used) {
+    idx <- which(d_c == target & !(seq_along(d_c) %in% used))
+    if (length(idx) != 1) return(NA_integer_)
+    idx
+  }
+  used <- integer(0)
+  iy <- map_dim(n_y, used); used <- c(used, iy)
+  is <- map_dim(n_s, used); used <- c(used, is)
+  iff <- map_dim(n_f, used)
+  
+  if (anyNA(c(iy, is, iff))) {
+    stop(sprintf(
+      "Could not align catch_ysf dims %s to af_ysfa y/s/f dims %s. ",
+      paste(d_c, collapse = "x"),
+      paste(c(n_y, n_s, n_f), collapse = "x")
+    ))
+  }
+  
+  # helper to read catch regardless of dim order
+  get_catch <- function(y, s, f) {
+    idx <- vector("list", 3)
+    idx[[iy]] <- y; idx[[is]] <- s; idx[[iff]] <- f
+    do.call(`[`, c(list(catch_ysf), idx, list(drop = TRUE)))
+  }
+  
+  repaired <- vector("list", 0L)
+  
+  for (f in seq_len(n_f)) {
+    for (s in seq_len(n_s)) {
+      af_sum_y <- vapply(seq_len(n_y), function(yi) sum(af_ysfa[yi, s, f, ], na.rm = TRUE), numeric(1))
+      usable_y <- which(af_sum_y > eps)
+      
+      for (y in seq_len(n_y)) {
+        cval <- get_catch(y, s, f)
+        asum <- af_sum_y[y]
+        
+        if (!is.na(cval) && cval > 0 && (is.na(asum) || asum <= eps)) {
+          lo <- max(1L, y - N); hi <- min(n_y, y + N)
+          cand <- setdiff(seq.int(lo, hi), y)
+          donors <- intersect(cand, usable_y)
+          if (length(donors) == 0L && expand_if_empty) donors <- setdiff(usable_y, y)
+          if (length(donors) == 0L) {
+            stop(sprintf("Cannot repair AF at y=%d s=%d f=%d: no donor years with nonzero AF.", y, s, f))
+          }
+          
+          dist <- abs(donors - y); dist[dist == 0] <- 1e-9
+          w <- (1 / (dist^p)); w <- w / sum(w)
+          
+          donor_mat <- vapply(donors, function(yy) af_ysfa[yy, s, f, ], numeric(n_a))
+          af_new <- as.numeric(donor_mat %*% w)
+          af_new[is.na(af_new)] <- 0
+          z <- sum(af_new)
+          if (z <= eps) stop(sprintf("Repair produced zero AF at y=%d s=%d f=%d.", y, s, f))
+          af_ysfa[y, s, f, ] <- af_new / z
+          af_sum_y[y] <- 1.0
+          
+          repaired[[length(repaired) + 1L]] <- data.frame(
+            year = y, season = s, fishery = f, n_donors = length(donors)
+          )
+        }
+      }
+    }
+  }
+  
+  repaired_df <- if (length(repaired)) do.call(rbind, repaired) else data.frame()
+  if (verbose && nrow(repaired_df) > 0) {
+    message(sprintf("Repaired %d year-season-fishery AF slice(s).", nrow(repaired_df)))
+  }
+  list(af_ysfa = af_ysfa, repaired = repaired_df, catch_dim_map = c(year = iy, season = is, fishery = iff))
+}
+
+for (f in seq_len(data$n_fishery)) {
+  if (data$removal_switch_f[f] > 0) {
+    x1 <- data$catch_obs_ysf[,,f]
+    x2 <- apply(data$af_sliced_ysfa[,,f,], 1:2, sum)
+    # x1 <- proj_catch_ysf[,,f]
+    # x2 <- apply(proj_af_sliced_ysfa[,,f,], 1:2, sum)
+    df1 <- as.data.frame(x1) %>%
+      rownames_to_column("Year") %>%
+      pivot_longer(cols = c(`1`, `2`), names_to = "Season", values_to = "catch")
+    df2 <- as.data.frame(x2) %>%
+      rownames_to_column("Year") %>%
+      pivot_longer(cols = c(`1`, `2`), names_to = "Season", values_to = "AF")
+    df <- left_join(df1, df2, by = c("Year", "Season")) %>%
+      mutate(Year = as.numeric(Year)) %>%
+      mutate(violation = (catch > 0 & AF == 0) | (AF > 0 & catch == 0)) %>%
+      filter(violation)
+    if (nrow(df) > 0) warning("You have specified catch for a fishery using direct removals but no associated sliced AFs.")
+    # data$catch_obs_ysf[39:44,1,f]
+    # rowSums(data$af_sliced_ysfa[60:65,1,f,])
+  }
+}
+df
+
+# obs_fix <- repair_af_slices_weighted(
+#   catch_ysf = data$catch_obs_ysf,
+#   af_ysfa   = data$af_sliced_ysfa,
+#   N = 3, p = 1
+# )
+# data$af_sliced_ysfa <- obs_fix$af_ysfa
+
+# proj_fix <- repair_af_slices_weighted(
+#   catch_ysf = proj_catch_ysf,
+#   af_ysfa   = proj_af_sliced_ysfa,
+#   N = 3, p = 1
+# )
+# proj_af_sliced_ysfa <- proj_fix$af_ysfa
+```
+
+# Model setup
+
+Define the parameter `list`:
+
+```{r}
+#| label: get-pars
+parameters <- get_parameters(data = data)
+exp(parameters$par_log_h)
+parameters$par_log_h <- log(0.8)
+```
+
+There is a lot of flexibility in specifying priors now. The default priors are 
+loaded using `get_priors` and the `evaluate_priors` function can be used to 
+check that the priors are doing what you expect:
+
+```{r}
+#| label: get-priors
+data$priors <- get_priors(parameters = parameters)
+evaluate_priors(parameters = parameters, priors = data$priors)
+```
+
+```{r}
+#| echo: false
+#| results: asis
+cat(priors_to_math(data$priors), sep = "\n")
+```
+
+Use RTMB's `map` option to turn parameters on/off:
+
+```{r}
+#| label: get-map
+map <- get_map(parameters = parameters)
+# map$par_log_af_alpha <- NULL
+# map$par_log_lf_alpha <- factor(c(1, 2, 3, NA, 4))
+```
+
+Using the `data`, the `parameters`, the parameter `map`, and the model 
+(`sbt_model`), the AD object is created using RTMBs `MakeADFun` function:
+
+```{r}
+#| label: run-nlminb
+#| cache: true
+obj <- MakeADFun(func = cmb(sbt_model, data), 
+                 parameters = parameters, map = map)
+unique(names(obj$par))
+obj$fn(obj$par)
+bounds <- get_bounds(obj = obj, parameters = parameters)
+
+control <- list(eval.max = 10000, iter.max = 10000)
+
+opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, hessian = obj$he,
+              lower = bounds$lower, upper = bounds$upper, control = control)
+opt <- nlminb(start = opt$par, objective = obj$fn, gradient = obj$gr, hessian = obj$he,
+              lower = bounds$lower, upper = bounds$upper, control = control)
+
+invisible(obj$fn(opt$par))
+obj$env$last.par.best[1:13]
+```
+
+Check that all parameters are estimable using the `check_estimability` function.
+This function was taken from the `TMBhelper` package and added to the `sbt` 
+package because the `TMBhelper` package is not set up as a proper package (it 
+does not install properly on the GitHub servers).
+
+```{r}
+#| label: check-estimability
+#| echo: true
+#| message: true
+#| warning: false
+check_estimability(obj = obj)
+# ce <- check_estimability(obj = obj)
+# ce[[4]] %>% filter(Param_check != "OK")
+```
+
+# Model fits
+
+Model fit to CPUE (@fig-cpue-fit) and the aerial surveys (@fig-aerial-fit).
+Length frequency fits for each longline fleet are shown in @fig-plot-LL1,
+@fig-plot-LL2, @fig-plot-LL3, and @fig-plot-LL4.
+Age composition fits are shown for the Indonesian fleet (@fig-plot-Indo) and
+the Australian fleet (@fig-plot-Aus).
+
+```{r}
+#| label: fig-cpue-fit
+#| echo: true
+#| message: false
+#| fig-cap: Model fits to CPUE.
+plot_cpue(data = data, object = obj, nsim = 10)
+```
+
+```{r}
+#| label: fig-aerial-fit
+#| echo: true
+#| message: false
+#| fig-cap: Model fits to aerial surveys.
+plot_aerial_survey(data = data, object = obj, nsim = 10)
+```
+
+```{r}
+#| label: fig-plot-LL1
+#| echo: true
+#| message: false
+#| fig-height: 14
+#| fig-cap: Model fits to LL1 length frequencies.
+plot_lf(data = data, object = obj, fishery = "LL1", ncol = 5)
+```
+
+```{r}
+#| label: fig-plot-LL2
+#| echo: true
+#| message: false
+#| fig-height: 8
+#| fig-cap: Model fits to LL2 length frequencies.
+plot_lf(data = data, object = obj, fishery = "LL2", ncol = 5)
+```
+
+```{r}
+#| label: fig-plot-LL3
+#| echo: true
+#| message: false
+#| fig-height: 14
+#| fig-cap: Model fits to LL3 length frequencies.
+plot_lf(data = data, object = obj, fishery = "LL3", ncol = 5)
+```
+
+```{r}
+#| label: fig-plot-LL4
+#| echo: true
+#| message: false
+#| fig-height: 9
+#| fig-cap: Model fits to LL4 length frequencies.
+plot_lf(data = data, object = obj, fishery = "LL4", ncol = 5)
+```
+
+```{r}
+#| label: fig-plot-Indo
+#| echo: true
+#| message: false
+#| fig-height: 8
+#| fig-cap: Model fits to Indonesian age compositions.
+plot_af(data = data, object = obj, fishery = "Indonesian")
+```
+
+```{r}
+#| label: fig-plot-Aus
+#| echo: true
+#| message: false
+#| fig-height: 10
+#| fig-cap: Model fits to Australian age compositions.
+plot_af(data = data, object = obj, fishery = "Australian")
+```
+
+I think that not all of the catch is being taken for LL4 because there are years 
+where there is catch but no LFs but we've set this fishery to direct removals 
+(@fig-catch-fit, @fig-catch-resid).
+
+```{r}
+#| label: fig-catch-fit
+#| echo: true
+#| message: false
+#| fig-cap: Catch.
+plot_catch(data = data, object = obj)
+```
+
+```{r}
+#| label: fig-catch-resid
+#| echo: true
+#| message: false
+#| fig-cap: Catch residuals.
+plot_catch(data = data, object = obj, plot_resid = TRUE)
+```
+
+# One step ahead (OSA) residuals
+
+One step ahead (OSA) residuals are a replacement for Pearson residuals 
+(@fig-osa-resid).
+
+```{r}
+#| label: fig-osa-resid
+#| echo: true
+#| message: false
+#| fig-cap: One step ahead (OSA) residuals.
+plot_cpue_residuals(data = data, obj = obj, type = "OSA")
+```
+
+## Derived quantities
+
+Recruitment deviates and recruitment (@fig-recruitment-dev, @fig-recruitment).
+Natural mortality at age is shown in @fig-M.
+Initial numbers at age are shown in @fig-init-n.
+Harvest rates are shown in @fig-hrate.
+
+```{r}
+#| echo: false
+get_link <- function(df) {
+  csv_text <- capture.output(write.csv(df, row.names = FALSE))
+  csv_encoded <- base64enc::base64encode(charToRaw(paste(csv_text, collapse = "\n")))
+  sprintf(
+    '<a href="data:text/csv;base64,%s" download="data.csv" style="text-decoration: underline; color: blue;">download csv</a>',
+    csv_encoded
+  )
+}
+
+download_link <- data.frame(Year = data$first_yr:(data$last_yr + 1), Recruitment = obj$report()$number_ysa[,1,1]) %>% 
+  get_link()
+```
+
+```{r}
+#| label: fig-recruitment-dev
+#| echo: true
+#| message: false
+#| fig-cap: !expr paste0("Recruitment deviates (", download_link, ").")
+plot_rec_devs(data = data, object = obj)
+```
+
+```{r}
+#| label: fig-recruitment
+#| echo: true
+#| message: false
+#| fig-cap: !expr paste0("Recruitment (", download_link, ").")
+plot_recruitment(data = data, object = obj)
+```
+
+```{r}
+#| label: fig-M
+#| echo: true
+#| message: false
+#| fig-cap: Natural mortality at age.
+plot_natural_mortality(data = data, object = obj)
+```
+
+```{r}
+#| label: fig-init-n
+#| echo: true
+#| message: false
+#| fig-cap: Initial numbers at age.
+plot_initial_numbers(data = data, object = obj)
+```
+
+```{r}
+#| label: fig-hrate
+#| echo: true
+#| message: false
+#| fig-cap: Harvest rate by year.
+plot_hrate(data = data, object = obj, years = 1990:2010)
+```
+
+In the plots below, the different coloured blocks of years indicate blocks of 
+parameters, vertical dashed lines indicate the minimum and maximum ages over 
+which selectivity is estimated, and crosses to the left indicate that LF data is 
+available during that year.
+Selectivity at age by year is shown for the LL1 (@fig-plot-sel-ll1),
+LL2 (@fig-plot-sel-ll2), LL3 (@fig-plot-sel-ll3), Indonesian (@fig-plot-sel-indo),
+Australian (@fig-plot-sel-aus), and CPUE (@fig-plot-sel-cpue) fleets.
+Spawning biomass over time is shown in @fig-plot-sbio.
+
+```{r}
+#| label: fig-plot-sel-ll1
+#| echo: true
+#| message: false
+#| fig-height: 10
+#| fig-cap: Selectivity at age by year for the LL1 fleet.
+# yrs <- c(1952, 1953, 1954, seq(1955, 2020, 5), 2021, 2022)
+yrs <- c(1952:2022)
+plot_selectivity(data = data, object = obj, years = yrs, fisheries = "LL1")
+```
+
+```{r}
+#| label: fig-plot-sel-ll2
+#| echo: true
+#| message: false
+#| fig-height: 10
+#| fig-cap: Selectivity at age by year for the LL2 fleet.
+plot_selectivity(data = data, object = obj, years = yrs, fisheries = "LL2")
+```
+
+```{r}
+#| label: fig-plot-sel-ll3
+#| echo: true
+#| message: false
+#| fig-height: 10
+#| fig-cap: Selectivity at age by year for the LL3 fleet.
+plot_selectivity(data = data, object = obj, years = yrs, fisheries = "LL3")
+```
+
+```{r}
+#| label: fig-plot-sel-ll4
+#| echo: true
+#| message: false
+#| fig-height: 10
+#| fig-cap: Selectivity at age by year for the LL4 fleet.
+# plot_selectivity(data = data, object = obj, years = yrs, fisheries = "LL4")
+```
+
+```{r}
+#| label: fig-plot-sel-indo
+#| echo: true
+#| message: false
+#| fig-height: 10
+#| fig-cap: Selectivity at age by year for the Indonesian fleet.
+plot_selectivity(data = data, object = obj, years = yrs, fisheries = "Indonesian")
+```
+
+```{r}
+#| label: fig-plot-sel-aus
+#| echo: true
+#| message: false
+#| fig-height: 10
+#| fig-cap: Selectivity at age by year for the Australian fleet.
+plot_selectivity(data = data, object = obj, years = yrs, fisheries = "Australian")
+```
+
+```{r}
+#| label: fig-plot-sel-cpue
+#| echo: true
+#| message: false
+#| fig-height: 10
+#| fig-cap: Selectivity at age by year for the CPUE index.
+plot_selectivity(data = data, object = obj, years = yrs, fisheries = "CPUE")
+```
+
+```{r}
+#| label: fig-plot-sbio
+#| echo: true
+#| message: false
+#| fig-cap: !expr paste0("Spawning biomass by year (", download_link, ").")
+plot_biomass_spawning(data_list = list(data), object_list = list(obj))
+```

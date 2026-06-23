@@ -7,7 +7,9 @@ rm(list = ls())
 # remotes::install_github("noaa-afsc/SparseNUTS")
 # remotes::install_github(repo = "quantifish/sbt")
 
-# setwd(file.path(getwd(), "OMMP16"))
+if (basename(getwd()) != "OMMP16") {
+  setwd(file.path(getwd(), "OMMP16"))
+}
 
 library(tidyverse)
 library(sbt)
@@ -26,8 +28,8 @@ catch <- read_csv(file.path(data_loc, "catch.csv"))
 catch_UA <- read_csv(file.path(data_loc, "catch_UA.csv"))
 scenarios_surface <- read_csv(file.path(data_loc, "scenarios_surface.csv"))
 scenarios_LL1 <- read_csv(file.path(data_loc, "scenarios_LL1.csv"))
-# POPs <- read_csv(file.path(data_loc, "POPs.csv"))
-POPs <- read_csv("POPs_test.csv")
+POPs <- read_csv(file.path(data_loc, "POPs.csv"))
+# POPs <- read_csv("POPs_test.csv")
 HSPs <- read_csv(file.path(data_loc, "HSPs.csv"))
 GTs <- read_csv(file.path(data_loc, "GTs.csv"))
 troll <- read_csv(file.path(data_loc, "trolling_index.csv"))
@@ -71,65 +73,99 @@ data <- get_data(data_in = data)
 
 # Need to fix LFs ----
 
-repair_af_slices_weighted <- function(catch_ysf,
-                                      af_ysfa,
+check_sliced <- function(data) {
+  for (f in seq_len(data$n_fishery)) {
+    if (data$removal_switch_f[f] > 0) {
+      x1 <- data$catch_obs_ysf[,,f]
+      x2 <- apply(data$af_sliced_ysfa[,,f,], 1:2, sum)
+      
+      df1 <- as.data.frame(x1) %>%
+        rownames_to_column("Year") %>%
+        pivot_longer(cols = c(`1`, `2`), names_to = "Season", values_to = "catch")
+      df2 <- as.data.frame(x2) %>%
+        rownames_to_column("Year") %>%
+        pivot_longer(cols = c(`1`, `2`), names_to = "Season", values_to = "AF")
+      
+      df <- left_join(df1, df2, by = c("Year", "Season")) %>%
+        mutate(Year = as.numeric(Year)) %>%
+        # --- FIXED LINE: Only flag if catch exists but AF is empty ---
+        mutate(violation = (catch > 0 & AF == 0)) %>% 
+        filter(violation)
+      
+      if (nrow(df) > 0) {
+        warning(sprintf("Fishery %d: You have specified catch for a fishery using direct removals but no associated sliced AFs.", f))
+        return(df) # Return the issues if found
+      }
+    }
+  }
+  return(data.frame()) # Return empty dataframe if everything is clean
+}
+
+repair_af_slices_weighted <- function(catch_ysf, af_ysfa,
                                       N = 3L,
                                       p = 1,
                                       eps = 1e-12,
                                       expand_if_empty = TRUE,
                                       verbose = TRUE) {
-  # af_ysfa is assumed [year, season, fishery, age]
+  # Setup basic dimension variables
   d_af <- dim(af_ysfa)
-  stopifnot(length(d_af) == 4)
   n_y <- d_af[1]; n_s <- d_af[2]; n_f <- d_af[3]; n_a <- d_af[4]
   
   d_c <- dim(catch_ysf)
-  stopifnot(length(d_c) == 3)
+  is <- which(d_c == n_s)[1]
+  iff <- which(d_c == n_f)[1]
+  iy  <- setdiff(1:3, c(is, iff))
   
-  # map catch dims to y/s/f by matching sizes in af
-  map_dim <- function(target, used) {
-    idx <- which(d_c == target & !(seq_along(d_c) %in% used))
-    if (length(idx) != 1) return(NA_integer_)
-    idx
-  }
-  used <- integer(0)
-  iy <- map_dim(n_y, used); used <- c(used, iy)
-  is <- map_dim(n_s, used); used <- c(used, is)
-  iff <- map_dim(n_f, used)
-  
-  if (anyNA(c(iy, is, iff))) {
-    stop(sprintf(
-      "Could not align catch_ysf dims %s to af_ysfa y/s/f dims %s. ",
-      paste(d_c, collapse = "x"),
-      paste(c(n_y, n_s, n_f), collapse = "x")
-    ))
-  }
-  
-  # helper to read catch regardless of dim order
-  get_catch <- function(y, s, f) {
-    idx <- vector("list", 3)
-    idx[[iy]] <- y; idx[[is]] <- s; idx[[iff]] <- f
-    do.call(`[`, c(list(catch_ysf), idx, list(drop = TRUE)))
-  }
+  # --- NEW: Get actual calendar year/season/fishery labels ---
+  af_years  <- dimnames(af_ysfa)[[1]]
+  c_years   <- dimnames(catch_ysf)[[iy]]
+  c_seasons <- dimnames(catch_ysf)[[is]]
+  c_fisheries <- dimnames(catch_ysf)[[iff]]
   
   repaired <- vector("list", 0L)
   
   for (f in seq_len(n_f)) {
+    # Match fishery name/character string
+    f_lbl <- if (!is.null(c_fisheries)) c_fisheries[f] else as.character(f)
+    
     for (s in seq_len(n_s)) {
+      s_lbl <- if (!is.null(c_seasons)) c_seasons[s] else as.character(s)
+      
       af_sum_y <- vapply(seq_len(n_y), function(yi) sum(af_ysfa[yi, s, f, ], na.rm = TRUE), numeric(1))
       usable_y <- which(af_sum_y > eps)
       
       for (y in seq_len(n_y)) {
-        cval <- get_catch(y, s, f)
+        y_lbl <- if (!is.null(af_years)) af_years[y] else as.character(y)
+        
+        # Look up catch using name matching instead of relative index positioning
+        cval <- NA_real_
+        if (!is.null(c_years) && y_lbl %in% c_years) {
+          # Dynamic list indexing to handle any catch dimension order safely
+          idx <- vector("list", 3)
+          idx[[iy]] <- y_lbl; idx[[is]] <- s_lbl; idx[[iff]] <- f_lbl
+          cval <- do.call(`[`, c(list(catch_ysf), idx, list(drop = TRUE)))
+        } else if (is.null(c_years) && y <= d_c[iy]) {
+          # Fallback if arrays do not have dimnames
+          idx <- vector("list", 3)
+          idx[[iy]] <- y; idx[[is]] <- s; idx[[iff]] <- f
+          cval <- do.call(`[`, c(list(catch_ysf), idx, list(drop = TRUE)))
+        }
+        
+        # Skip if there is no positive catch recorded for this calendar year
+        if (is.na(cval) || cval <= 0) {
+          next
+        }
+        
         asum <- af_sum_y[y]
         
-        if (!is.na(cval) && cval > 0 && (is.na(asum) || asum <= eps)) {
+        # If there is positive catch but empty Age Frequencies, fix it
+        if (is.na(asum) || asum <= eps) {
           lo <- max(1L, y - N); hi <- min(n_y, y + N)
           cand <- setdiff(seq.int(lo, hi), y)
           donors <- intersect(cand, usable_y)
           if (length(donors) == 0L && expand_if_empty) donors <- setdiff(usable_y, y)
           if (length(donors) == 0L) {
-            stop(sprintf("Cannot repair AF at y=%d s=%d f=%d: no donor years with nonzero AF.", y, s, f))
+            stop(sprintf("Cannot repair AF at Year %s (idx %d) s=%d f=%d: no donor years found.", y_lbl, y, s, f))
           }
           
           dist <- abs(donors - y); dist[dist == 0] <- 1e-9
@@ -139,12 +175,13 @@ repair_af_slices_weighted <- function(catch_ysf,
           af_new <- as.numeric(donor_mat %*% w)
           af_new[is.na(af_new)] <- 0
           z <- sum(af_new)
-          if (z <= eps) stop(sprintf("Repair produced zero AF at y=%d s=%d f=%d.", y, s, f))
+          if (z <= eps) stop(sprintf("Repair produced zero AF at Year %s s=%d f=%d.", y_lbl, s, f))
+          
           af_ysfa[y, s, f, ] <- af_new / z
           af_sum_y[y] <- 1.0
           
           repaired[[length(repaired) + 1L]] <- data.frame(
-            year = y, season = s, fishery = f, n_donors = length(donors)
+            year = y_lbl, season = s, fishery = f, n_donors = length(donors)
           )
         }
       }
@@ -158,35 +195,17 @@ repair_af_slices_weighted <- function(catch_ysf,
   list(af_ysfa = af_ysfa, repaired = repaired_df, catch_dim_map = c(year = iy, season = is, fishery = iff))
 }
 
-for (f in seq_len(data$n_fishery)) {
-  if (data$removal_switch_f[f] > 0) {
-    x1 <- data$catch_obs_ysf[,,f]
-    x2 <- apply(data$af_sliced_ysfa[,,f,], 1:2, sum)
-    # x1 <- proj_catch_ysf[,,f]
-    # x2 <- apply(proj_af_sliced_ysfa[,,f,], 1:2, sum)
-    df1 <- as.data.frame(x1) %>%
-      rownames_to_column("Year") %>%
-      pivot_longer(cols = c(`1`, `2`), names_to = "Season", values_to = "catch")
-    df2 <- as.data.frame(x2) %>%
-      rownames_to_column("Year") %>%
-      pivot_longer(cols = c(`1`, `2`), names_to = "Season", values_to = "AF")
-    df <- left_join(df1, df2, by = c("Year", "Season")) %>%
-      mutate(Year = as.numeric(Year)) %>%
-      mutate(violation = (catch > 0 & AF == 0) | (AF > 0 & catch == 0)) %>%
-      filter(violation)
-    if (nrow(df) > 0) warning("You have specified catch for a fishery using direct removals but no associated sliced AFs.")
-    # data$catch_obs_ysf[39:44,1,f]
-    # rowSums(data$af_sliced_ysfa[60:65,1,f,])
-  }
-}
-df
+df <- check_sliced(data)
 
-# obs_fix <- repair_af_slices_weighted(
-#   catch_ysf = data$catch_obs_ysf,
-#   af_ysfa   = data$af_sliced_ysfa,
-#   N = 3, p = 1
-# )
-# data$af_sliced_ysfa <- obs_fix$af_ysfa
+obs_fix <- repair_af_slices_weighted(
+  catch_ysf = data$catch_obs_ysf,
+  af_ysfa   = data$af_sliced_ysfa,
+  N = 3, p = 1
+)
+data1 <- data
+data1$af_sliced_ysfa <- obs_fix$af_ysfa
+
+df <- check_sliced(data1)
 
 # proj_fix <- repair_af_slices_weighted(
 #   catch_ysf = proj_catch_ysf,
@@ -264,7 +283,7 @@ do_run <- FALSE
 
 if (do_run) {
   # grid_pars <- get_grid(parameters = parameters, m0 = c(0.4), m10 = c(0.065), h = c(0.8), psi = c(1.5, 1.75, 2))
-  grid_pars <- get_grid(parameters = parameters, h = c(0.8), psi = c(1.75))
+  grid_pars <- get_grid(parameters = parameters, h = c(0.63, 0.72), psi = c(1.75))
   grid_list <- run_grid(data = data, grid_parameters = grid_pars, bounds = bounds, map = map, control = control, parallel = FALSE)
   grid_check <- check_grid(grid = grid_list)
   # if some grid cells have not converged then you can run them again using rerun_grid
@@ -272,7 +291,9 @@ if (do_run) {
   # grid_list <- rerun_grid(grid = grid_list, bounds = bounds, cells = idc, control = control) # this crashes my machine
   grid_cells <- sample_grid(grid = grid_list, seed = 42, prior_psi = c(1))
   grid_tmbfit <- grid_to_tmbfit(data = data, parameters = parameters, grid = grid_list, grid_parameters = grid_pars, grid_cells = grid_cells)
-  save(grid_pars, grid_list, grid_check, grid_cells, grid_tmbfit, file = "grid_run4.rda")
+  save(grid_pars, grid_list,
+       grid_check, grid_cells, grid_tmbfit,
+       file = "grid_run9.rda")
   # save_grid(grid = grid_list, dir = "inst/extdata/grid_list", overwrite = TRUE, compress = "gzip")
   # save(grid_pars, file = "inst/extdata/grid_pars.rda")
   # save(grid_list, file = "inst/extdata/grid_list.rda")
@@ -303,6 +324,11 @@ table(exp(grid_tmbfit$samples[,,'par_log_m0']))
 table(grid_check$grid_summary$m10[grid_cells$grid_cells])
 table(exp(grid_tmbfit$samples[,,'par_log_m10']))
 data$priors$par_log_m10 # the m10 prior could be doing this?
+
+barplot(table(exp(grid_tmbfit$samples[,,'par_log_h'])), xlab = 'h')
+barplot(table(exp(grid_tmbfit$samples[,,'par_log_psi'])), xlab = 'psi')
+barplot(table(exp(grid_tmbfit$samples[,,'par_log_m0'])), xlab = 'm0')
+barplot(table(factor(exp(grid_tmbfit$samples[,,'par_log_m10']), levels = c(0.065, 0.085, 0.105))), xlab = 'm10')
 
 plot_biomass_spawning(data_list = rep(list(data), times = 108), object_list = grid_list)
 

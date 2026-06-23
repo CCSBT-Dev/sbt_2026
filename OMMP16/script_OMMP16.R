@@ -18,6 +18,10 @@ library(bayesplot)
 
 theme_set(theme_bw())
 
+run_suffix <- "troll_switch0_legacy9_free_m0_m10_psi1.25_h0.63_sparsenuts"
+pdf(paste0("Rplots_", run_suffix, ".pdf"))
+on.exit(dev.off(), add = TRUE)
+
 # Read in the data ----
 
 data_loc <- "csv_2026"
@@ -170,12 +174,16 @@ check_sliced(data)
 
 parameters <- get_parameters(data = data)
 parameters$par_log_h <- log(0.72)
+parameters$par_log_psi <- log(1.25)
+parameters$par_log_h <- log(0.63)
 
 exp(parameters$par_log_h)
 exp(parameters$par_log_af_alpha)
 exp(parameters$par_log_lf_alpha)
 
 map <- get_map(parameters = parameters)
+map$par_log_m0 <- NULL
+map$par_log_m10 <- NULL
 # map$par_log_af_alpha <- NULL
 # map$par_log_lf_alpha <- factor(c(1, 2, 3, NA, 4))
 
@@ -249,9 +257,7 @@ if (do_run) {
   # grid_list <- rerun_grid(grid = grid_list, bounds = bounds, cells = idc, control = control) # this crashes my machine
   grid_cells <- sample_grid(grid = grid_list, seed = 42, prior_psi = c(1))
   grid_tmbfit <- grid_to_tmbfit(data = data, parameters = parameters, grid = grid_list, grid_parameters = grid_pars, grid_cells = grid_cells)
-  save(grid_pars, grid_list,
-       grid_check, grid_cells, grid_tmbfit,
-       file = "grid_run9.rda")
+  save(grid_pars, grid_list, grid_check, grid_cells, grid_tmbfit, file = paste0("grid_run1_", run_suffix, ".rda"))
   # save_grid(grid = grid_list, dir = "inst/extdata/grid_list", overwrite = TRUE, compress = "gzip")
   # save(grid_pars, file = "inst/extdata/grid_pars.rda")
   # save(grid_list, file = "inst/extdata/grid_list.rda")
@@ -267,33 +273,33 @@ if (do_run) {
   # load(system.file("extdata", "grid_tmbfit.rda", package = "sbt"))
 }
 
-length(grid_pars) # 108
-sapply(grid_list, function(x) !is.null(x$opt) && x$opt$convergence != 0)
-data.frame(grid_check$grid_summary)
-check_estimability(grid_list[[6]])
-left_join(grid_cells$grid_freq, grid_check$grid_summary, by = join_by(m0, m10, h, psi)) %>% 
-  filter(Freq > 0) %>%
-  data.frame()
-# psi_values <- sapply(grid_list, function(x) exp(x$report()$par_log_psi))
-# unique(psi_values)
-table(exp(grid_tmbfit$samples[,,'par_log_psi']))
-table(exp(grid_tmbfit$samples[,,'par_log_m0']))
+if (do_run) {
+  length(grid_pars)
+  sapply(grid_list, function(x) !is.null(x$opt) && x$opt$convergence != 0)
+  data.frame(grid_check$grid_summary)
+  check_estimability(grid_list[[6]])
+  left_join(grid_cells$grid_freq, grid_check$grid_summary, by = join_by(m0, m10, h, psi)) %>% 
+    filter(Freq > 0) %>%
+    data.frame()
+  # psi_values <- sapply(grid_list, function(x) exp(x$report()$par_log_psi))
+  # unique(psi_values)
+  table(exp(grid_tmbfit$samples[,,'par_log_psi']))
+  table(exp(grid_tmbfit$samples[,,'par_log_m0']))
+  
+  table(grid_check$grid_summary$m10[grid_cells$grid_cells])
+  table(exp(grid_tmbfit$samples[,,'par_log_m10']))
+  data$priors$par_log_m10 # the m10 prior could be doing this?
+  
+  plot_biomass_spawning(data_list = rep(list(data), times = length(grid_list)), object_list = grid_list)
+  
+  # extract_samples(grid_tmbfit)
+  post <- as.data.frame(grid_tmbfit)
+  pars <- grid_tmbfit$par_names[1:8]
+  mcmc_trace(x = post, pars = pars)
+}
 
-table(grid_check$grid_summary$m10[grid_cells$grid_cells])
-table(exp(grid_tmbfit$samples[,,'par_log_m10']))
-data$priors$par_log_m10 # the m10 prior could be doing this?
-
-barplot(table(exp(grid_tmbfit$samples[,,'par_log_h'])), xlab = 'h')
-barplot(table(exp(grid_tmbfit$samples[,,'par_log_psi'])), xlab = 'psi')
-barplot(table(exp(grid_tmbfit$samples[,,'par_log_m0'])), xlab = 'm0')
-barplot(table(factor(exp(grid_tmbfit$samples[,,'par_log_m10']), levels = c(0.065, 0.085, 0.105))), xlab = 'm10')
-
-plot_biomass_spawning(data_list = rep(list(data), times = 108), object_list = grid_list)
-
-# extract_samples(grid_tmbfit)
-post <- as.data.frame(grid_tmbfit)
-pars <- grid_tmbfit$par_names[1:8]
-mcmc_trace(x = post, pars = pars)
+run_mcmc <- TRUE
+if (!run_mcmc) quit(save = "no")
 
 # MCMC for single grid cell ----
 
@@ -304,6 +310,10 @@ mcmc <- sample_snuts(
   control = list(adapt_delta = 0.99), init = "last.par.best",
   # lower = bnd$lower, upper = bnd$upper, # these bounds dont seem to work
   globals = sbt_globals())
+
+save(data, parameters, obj, opt, mcmc, file = paste0("mcmc_", run_suffix, ".rda"))
+
+quit(save = "no")
 
 # save(data, parameters, obj, opt, mcmc, file = "mcmc_0divergences.rda")
 # save(data, parameters, obj, opt, mcmc, file = "mcmc_new_rec.rda")
@@ -334,7 +344,7 @@ decamod::pairs_rtmb(fit = mcmc, order = "divergent", pars = 1:5)
 # obj_list <- list()
 grd <- expand.grid(h = c(0.55, 0.63, 0.72, 0.8), psi = c(1.5, 1.75, 2))
 
-grid_dir <- "grid1"
+grid_dir <- paste0("grid1_", run_suffix)
 dir.create(grid_dir)
 for (i in 1:nrow(grd)) {
   parameters$par_log_h <- log(grd$h[i])

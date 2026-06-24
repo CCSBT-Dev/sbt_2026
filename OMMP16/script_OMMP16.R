@@ -7,9 +7,7 @@ rm(list = ls())
 # remotes::install_github("noaa-afsc/SparseNUTS")
 # remotes::install_github(repo = "quantifish/sbt")
 
-if (basename(getwd()) != "OMMP16") {
-  setwd(file.path(getwd(), "OMMP16"))
-}
+if (basename(getwd()) != "OMMP16") setwd(file.path(getwd(), "OMMP16"))
 
 library(tidyverse)
 library(sbt)
@@ -18,9 +16,9 @@ library(bayesplot)
 
 theme_set(theme_bw())
 
-run_suffix <- "troll_switch0_legacy9_free_m0_m10_psi1.25_h0.63_sparsenuts"
-pdf(paste0("Rplots_", run_suffix, ".pdf"))
-on.exit(dev.off(), add = TRUE)
+# run_suffix <- "troll_switch0_legacy9_free_m0_m10_psi1.25_h0.63_sparsenuts"
+# pdf(paste0("Rplots_", run_suffix, ".pdf"))
+# on.exit(dev.off(), add = TRUE)
 
 # Read in the data ----
 
@@ -33,7 +31,6 @@ catch_UA <- read_csv(file.path(data_loc, "catch_UA.csv"))
 scenarios_surface <- read_csv(file.path(data_loc, "scenarios_surface.csv"))
 scenarios_LL1 <- read_csv(file.path(data_loc, "scenarios_LL1.csv"))
 POPs <- read_csv(file.path(data_loc, "POPs.csv"))
-# POPs <- read_csv("POPs_test.csv")
 HSPs <- read_csv(file.path(data_loc, "HSPs.csv"))
 GTs <- read_csv(file.path(data_loc, "GTs.csv"))
 troll <- read_csv(file.path(data_loc, "trolling_index.csv"))
@@ -59,8 +56,8 @@ data <- list(
   sel_Ind_yrs = c(1976, 1995, 1997, 1999, 2002, 2004, 2006, 2008, 2010, 2012:2022),
   sel_Aus_yrs = c(1952, 1969, 1973, 1977, 1981, 1985, 1989, 1993, 1997:2025),
   sel_CPUE_yrs = c(1969, 1973, 1977, 1981, 1985, 1989, 1993, 1997, 2001, 2006, 2007, 2008, 2011, 2014, 2017, 2020),
-  af_switch = 1, # 1=multinomial, 2=Dirichlet, 3=Dirichlet-multinomial, 9=old
-  lf_switch = 1, lf_minbin = c(1, 1, 1, 11),
+  af_switch = 2, # 1=multinomial, 2=Dirichlet, 3=Dirichlet-multinomial, 9=old
+  lf_switch = 2, lf_minbin = c(1, 1, 1, 11),
   cpue_switch = 1, cpue_a1 = 5, cpue_a2 = 17,
   aerial_switch = 4, aerial_tau = 0.3, 
   troll_switch = 0, 
@@ -171,34 +168,37 @@ check_sliced(data)
 # Parameters ----
 
 parameters <- get_parameters(data = data)
-
-tibble(
-  fishery = c("LL1", "LL2", "LL3", "LL4", "Indonesia", "Australia", "CPUE"),
-  rho_a = parameters$par_sel_rho_a,
-  rho_y = parameters$par_sel_rho_y,
-  sigma = exp(parameters$par_log_sel_sigma)
-)
+parameters$par_log_af_alpha <- log(c(2.883218, 2.961879))
+parameters$par_log_lf_alpha <- log(c(5.888388, 13.08122, 4.737597, 1, 6.198235))
 
 parameters1 <- parameters
 parameters$par_log_h <- log(0.72)
-parameters$par_log_psi <- log(1.75)
+# parameters$par_log_psi <- log(1.75)
+parameters$par_log_psi <- log(1.25)
 parameters$par_sel_rho_a[5] <- 0.95
 parameters$par_sel_rho_y[5] <- 0.6
 parameters$par_log_sel_sigma[5] <- log(0.2)
 parameters2 <- parameters
 
+tibble(
+  fishery = c("LL1", "LL2", "LL3", "LL4", "Indonesia", "Australia", "CPUE"),
+  rho_a = parameters2$par_sel_rho_a,
+  rho_y = parameters2$par_sel_rho_y,
+  sigma = exp(parameters2$par_log_sel_sigma)
+)
+
 exp(parameters$par_log_h)
 exp(parameters$par_log_af_alpha)
 exp(parameters$par_log_lf_alpha)
 
-map <- get_map(parameters = parameters)
+map <- get_map(parameters = parameters1)
 map$par_log_m0 <- NULL
 map$par_log_m10 <- NULL
-# map$par_log_af_alpha <- NULL
-# map$par_log_lf_alpha <- factor(c(1, 2, 3, NA, 4))
+map$par_log_af_alpha <- NULL
+map$par_log_lf_alpha <- factor(c(1, 2, 3, NA, 4))
 
-data$priors <- get_priors(parameters = parameters)
-evaluate_priors(parameters = parameters, priors = data$priors)
+data$priors <- get_priors(parameters = parameters1)
+evaluate_priors(parameters = parameters1, priors = data$priors)
 
 obj1 <- MakeADFun(func = cmb(sbt_model, data), parameters = parameters1, map = map)
 obj2 <- MakeADFun(func = cmb(sbt_model, data), parameters = parameters2, map = map)
@@ -224,10 +224,11 @@ opt2 <- nlminb(start = obj2$par, objective = obj2$fn, gradient = obj2$gr, hessia
 opt2 <- nlminb(start = opt2$par, objective = obj2$fn, gradient = obj2$gr, hessian = obj2$he,
                lower = bounds$lower, upper = bounds$upper, control = control)
 
-check_estimability(obj = obj1)
+check_estimability(obj = obj2)
 # ce <- check_estimability(obj = obj)
 # ce[[4]] %>% filter(Param_check != "OK"
 obj1$env$last.par.best[1:13]
+exp(obj1$env$last.par.best[1:13])
 
 # Inspect model outputs ----
 
@@ -256,11 +257,11 @@ plot_aerial_survey(data = data, object = obj, nsim = 1)
 
 plot_cpue_lf(data = data, object = obj)
 
-plot_af(data = data, object = obj, fishery = "Indonesian")
+plot_af(data = data, object = obj2, fishery = "Indonesian")
 plot_selectivity(data = data, object = obj, years = 2013:2026, fisheries = "Indonesian")
 plot_selectivity(data = data, object = obj, years = 1900:2026, fisheries = "Indonesian")
 
-plot_af(data = data, object = obj, fishery = "Australian")
+plot_af(data = data, object = obj2, fishery = "Australian")
 plot_selectivity(data = data, object = obj, years = 1900:2026, fisheries = "Australian")
 
 plot_lf(data = data, object = obj, fishery = "LL1")
@@ -275,7 +276,7 @@ plot_selectivity(data = data, object = obj, years = 2013:2026)
 # plot_selectivity(data = data, object = obj, years = 1969:2022, fisheries = "LL3")
 # plot_selectivity(data = data, object = obj, years = 1969:2022, fisheries = "LL4")
 
-plot_biomass_spawning(data_list = list(data), object_list = list(obj))
+plot_biomass_spawning(data_list = list(data, data), object_list = list(obj1, obj2))
 
 # Run MLE grid ----
 

@@ -1,0 +1,34 @@
+project:
+  type: website
+  output-dir: _site
+  render:
+    - index.qmd
+    - doc/NewLengthFreq.qmd
+
+website:
+  title: "SBT 2026"
+  site-url: "https://ccsbt-dev.github.io/sbt_2026/"
+  favicon: images/favicon.svg
+  navbar:
+    logo: images/ccsbt_logo.png
+    left:
+      - text: "Home"
+        href: index.qmd
+      - text: "Length Frequency"
+        href: doc/NewLengthFreq.qmd
+      - text: "OMMP16"
+        href: OMMP16/OMMP16.html
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    code-fold: true
+    code-tools: true
+    lightbox: true
+
+resources:
+  - OMMP16/OMMP16.html
+  - OMMP16/OMMP16_files/**
+  - images/**
+  - site.webmanifest

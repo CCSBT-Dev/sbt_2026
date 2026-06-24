@@ -8,7 +8,7 @@ format:
     code-fold: true          # enables collapsible code
     code-tools: true         # optional: adds a show/hide button
     # title-block-banner: true
-    # title-block-logo: images/ccsbt_logo.png
+    # title-block-logo: ../images/ccsbt_logo.png
     embed-resources: true
     lightbox: true
   docx:
@@ -24,7 +24,7 @@ bibliography: references.bib
 
 <!-- Manually define your own title block -->
 <div style="display: flex; align-items: center; gap: 1em; margin-bottom: 1.5em;">
-  <img src="images/ccsbt_logo.png" width="100" alt="CCSBT logo" style="flex-shrink: 0;">
+  <img src="../images/ccsbt_logo.png" width="100" alt="CCSBT logo" style="flex-shrink: 0;">
   <div style="font-size: 2em; font-weight: bold;">
  Mean Length Estimation Using CPUE and Size Frequency Data 
   </div>
@@ -103,11 +103,11 @@ df2 <- read_csv(model_file, show_col_types = FALSE) |>
   rename(value = mean_pred1)
 latest_data_year <- min(max(df1$year, na.rm = TRUE), max(df2$year, na.rm = TRUE))
 
-assessment_length_freq <- read_csv(here("csv_2026", "length_freq.csv"), show_col_types = FALSE)
+assessment_length_freq <- read_csv(here("OMMP16", "csv_2026", "length_freq.csv"), show_col_types = FALSE)
 latest_assessment_year <- max(assessment_length_freq$Year, na.rm = TRUE)
 ```
 
-The Japanese size data currently loaded from `r size_file` run through `r max(df1$year, na.rm = TRUE)`. The GAM CPUE data currently loaded from `r model_file` run through `r max(df2$year, na.rm = TRUE)`, so the joined GAM-weighted estimates run through `r latest_data_year`. The assessment length-frequency data loaded from `r here("csv_2026", "length_freq.csv")` run through `r latest_assessment_year`.
+The Japanese size data currently loaded from `r size_file` run through `r max(df1$year, na.rm = TRUE)`. The GAM CPUE data currently loaded from `r model_file` run through `r max(df2$year, na.rm = TRUE)`, so the joined GAM-weighted estimates run through `r latest_data_year`. The assessment length-frequency data loaded from `r here("OMMP16", "csv_2026", "length_freq.csv")` run through `r latest_assessment_year`.
 
 ## Spatial Adjustments and Filtering
 

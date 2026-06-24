@@ -1,0 +1,38 @@
+---
+title: "SBT 2026"
+subtitle: "Operating model and monitoring procedure materials"
+listing: false
+format:
+  html:
+    include-in-header: includes/site-icons.html
+---
+
+::: {.hero}
+![](images/ccsbt_logo.png){fig-alt="CCSBT logo" width="120"}
+
+This site collects 2026 southern bluefin tuna model documentation, data preparation notes, and rendered working papers.
+:::
+
+## Documents
+
+::: {.grid}
+::: {.g-col-12 .g-col-md-6}
+### OMMP16 model notes
+
+Rendered Quarto output for the OMMP16 model setup and diagnostics.
+
+[Open OMMP16](OMMP16/OMMP16.html)
+:::
+
+::: {.g-col-12 .g-col-md-6}
+### Length-frequency processing
+
+Japanese longline size-frequency and CPUE processing notes.
+
+[Open length-frequency document](doc/NewLengthFreq.html)
+:::
+:::
+
+## Repository
+
+[View source on GitHub](https://github.com/CCSBT-Dev/sbt_2026)

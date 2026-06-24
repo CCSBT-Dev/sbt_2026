@@ -3,3 +3,8 @@
 .RData
 .Ruserdata
 sbt_2026.Rproj
+.DS_Store
+
+/.quarto/
+/_site/
+**/*.quarto_ipynb

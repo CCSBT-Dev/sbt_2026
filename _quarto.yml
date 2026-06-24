@@ -31,8 +31,11 @@ format:
 
 resources:
   - OMMP16/OMMP16.html
+  - OMMP16/OMMP16.pdf
   - OMMP16/OMMP16_files/**
+  - doc/NewLengthFreq.pdf
   - doc/Data_weighting.html
+  - doc/Data_weighting.pdf
   - doc/Data_weighting_files/**
   - images/**
   - site.webmanifest

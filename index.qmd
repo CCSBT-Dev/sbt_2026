@@ -21,7 +21,7 @@ This site collects 2026 southern bluefin tuna model documentation, data preparat
 
 Rendered Quarto output for the OMMP16 model setup and diagnostics.
 
-[Open OMMP16](OMMP16/OMMP16.html)
+[Open OMMP16 (HTML)](OMMP16/OMMP16.html) | [PDF](OMMP16/OMMP16.pdf)
 :::
 
 ::: {.g-col-12 .g-col-md-6}
@@ -29,7 +29,7 @@ Rendered Quarto output for the OMMP16 model setup and diagnostics.
 
 Japanese longline size-frequency and CPUE processing notes.
 
-[Open length-frequency document](doc/NewLengthFreq.html)
+[Open length-frequency document (HTML)](doc/NewLengthFreq.html) | [PDF](doc/NewLengthFreq.pdf)
 :::
 
 ::: {.g-col-12 .g-col-md-6}
@@ -37,7 +37,7 @@ Japanese longline size-frequency and CPUE processing notes.
 
 Data weighting diagnostics and effective sample-size sensitivity notes.
 
-[Open data-weighting document](doc/Data_weighting.html)
+[Open data-weighting document (HTML)](doc/Data_weighting.html) | [PDF](doc/Data_weighting.pdf)
 :::
 :::
 

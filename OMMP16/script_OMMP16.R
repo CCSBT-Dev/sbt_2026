@@ -59,16 +59,14 @@ data <- list(
   sel_Ind_yrs = c(1976, 1995, 1997, 1999, 2002, 2004, 2006, 2008, 2010, 2012:2022),
   sel_Aus_yrs = c(1952, 1969, 1973, 1977, 1981, 1985, 1989, 1993, 1997:2025),
   sel_CPUE_yrs = c(1969, 1973, 1977, 1981, 1985, 1989, 1993, 1997, 2001, 2006, 2007, 2008, 2011, 2014, 2017, 2020),
-  # af_switch = 9,
-  # af_switch = 1, # CAUSES ISSUES WHY?
-  af_switch = 9, # 1=multinomial, 2=Dirichlet, 3=Dirichlet-multinomial, 9=old
-  lf_switch = 9, lf_minbin = c(1, 1, 1, 11),
+  af_switch = 1, # 1=multinomial, 2=Dirichlet, 3=Dirichlet-multinomial, 9=old
+  lf_switch = 1, lf_minbin = c(1, 1, 1, 11),
   cpue_switch = 1, cpue_a1 = 5, cpue_a2 = 17,
   aerial_switch = 4, aerial_tau = 0.3, 
   troll_switch = 0, 
   pop_switch = 1, 
   hsp_switch = 1, 
-  hsp_false_negative = 0.6840729, # If I set the hsp false negative to 1 and af_switch = 9 then model OK
+  hsp_false_negative = 0.6840729,
   gt_switch = 1,
   tag_switch = 1, tag_var_factor = 1.82
 )
@@ -173,9 +171,21 @@ check_sliced(data)
 # Parameters ----
 
 parameters <- get_parameters(data = data)
+
+tibble(
+  fishery = c("LL1", "LL2", "LL3", "LL4", "Indonesia", "Australia", "CPUE"),
+  rho_a = parameters$par_sel_rho_a,
+  rho_y = parameters$par_sel_rho_y,
+  sigma = exp(parameters$par_log_sel_sigma)
+)
+
+parameters1 <- parameters
 parameters$par_log_h <- log(0.72)
-parameters$par_log_psi <- log(1.25)
-parameters$par_log_h <- log(0.63)
+parameters$par_log_psi <- log(1.75)
+parameters$par_sel_rho_a[5] <- 0.95
+parameters$par_sel_rho_y[5] <- 0.6
+parameters$par_log_sel_sigma[5] <- log(0.2)
+parameters2 <- parameters
 
 exp(parameters$par_log_h)
 exp(parameters$par_log_af_alpha)
@@ -190,30 +200,54 @@ map$par_log_m10 <- NULL
 data$priors <- get_priors(parameters = parameters)
 evaluate_priors(parameters = parameters, priors = data$priors)
 
-obj <- MakeADFun(func = cmb(sbt_model, data), parameters = parameters, map = map)
-bounds <- get_bounds(obj = obj, parameters = parameters)
+obj1 <- MakeADFun(func = cmb(sbt_model, data), parameters = parameters1, map = map)
+obj2 <- MakeADFun(func = cmb(sbt_model, data), parameters = parameters2, map = map)
 
-unique(names(obj$par))
-obj$report()$lp_lf
-obj$report()$lp_af
-obj$fn()
+bounds <- get_bounds(obj = obj1, parameters = parameters1)
+
+unique(names(obj1$par))
+# obj$report()$lp_lf
+# obj$report()$lp_af
+obj1$fn()
 
 # Optimise a single grid cell ----
 
 control <- list(eval.max = 10000, iter.max = 10000)
 
-opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, hessian = obj$he,
+opt1 <- nlminb(start = obj1$par, objective = obj1$fn, gradient = obj1$gr, hessian = obj1$he,
               lower = bounds$lower, upper = bounds$upper, control = control)
-opt <- nlminb(start = opt$par, objective = obj$fn, gradient = obj$gr, hessian = obj$he,
+opt1 <- nlminb(start = opt1$par, objective = obj1$fn, gradient = obj1$gr, hessian = obj1$he,
               lower = bounds$lower, upper = bounds$upper, control = control)
 
-check_estimability(obj = obj)
+opt2 <- nlminb(start = obj2$par, objective = obj2$fn, gradient = obj2$gr, hessian = obj2$he,
+               lower = bounds$lower, upper = bounds$upper, control = control)
+opt2 <- nlminb(start = opt2$par, objective = obj2$fn, gradient = obj2$gr, hessian = obj2$he,
+               lower = bounds$lower, upper = bounds$upper, control = control)
+
+check_estimability(obj = obj1)
 # ce <- check_estimability(obj = obj)
-# ce[[4]] %>% filter(Param_check != "OK")
-
-obj$env$last.par.best[1:13]
+# ce[[4]] %>% filter(Param_check != "OK"
+obj1$env$last.par.best[1:13]
 
 # Inspect model outputs ----
+
+p1 <- plot_hsps(data, obj1)
+p2 <- plot_hsps(data, obj2)
+p1 / p2
+
+p1 <- plot_hsp_residuals(data, obj1)
+p2 <- plot_hsp_residuals(data, obj2)
+p1 + p2
+
+exp(obj1$env$last.par.best[4])
+exp(obj2$env$last.par.best[4])
+
+p1 <- plot_selectivity(data = data, object = obj1, years = 1900:2026, fisheries = "Indonesian")
+p2 <- plot_selectivity(data = data, object = obj2, years = 1900:2026, fisheries = "Indonesian")
+p1 + p2
+
+plot_af_residuals(data = data, obj = obj, fishery = 5)
+plot_af_residuals(data = data, obj = obj, fishery = 6)
 
 plot_cpue(data = data, object = obj, nsim = 1)
 plot_cpue_residuals(data = data, obj = obj, type = "OSA")
@@ -224,6 +258,7 @@ plot_cpue_lf(data = data, object = obj)
 
 plot_af(data = data, object = obj, fishery = "Indonesian")
 plot_selectivity(data = data, object = obj, years = 2013:2026, fisheries = "Indonesian")
+plot_selectivity(data = data, object = obj, years = 1900:2026, fisheries = "Indonesian")
 
 plot_af(data = data, object = obj, fishery = "Australian")
 plot_selectivity(data = data, object = obj, years = 1900:2026, fisheries = "Australian")

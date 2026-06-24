@@ -1,6 +1,6 @@
 ---
 title: "SBT 2026"
-subtitle: "Operating model and monitoring procedure materials"
+subtitle: "Operating model and management procedure materials"
 listing: false
 format:
   html:

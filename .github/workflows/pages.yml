@@ -31,6 +31,8 @@ jobs:
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
           packages: |
+            any::ggthemes
+            any::ggridges
             any::here
             any::janitor
             any::knitr

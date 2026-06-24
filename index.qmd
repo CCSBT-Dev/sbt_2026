@@ -31,6 +31,14 @@ Japanese longline size-frequency and CPUE processing notes.
 
 [Open length-frequency document](doc/NewLengthFreq.html)
 :::
+
+::: {.g-col-12 .g-col-md-6}
+### Data weighting
+
+Data weighting diagnostics and effective sample-size sensitivity notes.
+
+[Open data-weighting document](doc/Data_weighting.html)
+:::
 :::
 
 ## Repository

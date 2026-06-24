@@ -4,6 +4,7 @@ project:
   render:
     - index.qmd
     - doc/NewLengthFreq.qmd
+    - doc/Data_weighting.qmd
 
 website:
   title: "SBT 2026"
@@ -16,6 +17,8 @@ website:
         href: index.qmd
       - text: "Length Frequency"
         href: doc/NewLengthFreq.qmd
+      - text: "Data Weighting"
+        href: doc/Data_weighting.qmd
       - text: "OMMP16"
         href: OMMP16/OMMP16.html
 

@@ -264,6 +264,10 @@ window.Quarto = {
 <section id="introduction" class="level1">
 <h1>Introduction</h1>
 <p>This document configures the current <code>sbt_model</code> RTMB model structure using the ADMB selectivity functions from <code>sbt_vs_admb.qmd</code>. Fishery 7 shares the fishery 1 (LL1) selectivity. It is kept as a separate vignette so the default <code>sbt.qmd</code> model setup and package code are unaffected.</p>
+<figure class="figure">
+<a href="data_weighting_workflow_infographic.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="Workflow for weighting data components in stock assessment models."><img src="data_weighting_workflow_infographic.png" class="img-fluid figure-img" alt="Infographic showing a stock assessment workflow for data weighting: inventory data, fit base model, diagnose conflict, choose weighting, refit and report, with common approaches and diagnostics."></a>
+<figcaption class="figure-caption">Workflow for weighting data components in stock assessment models.</figcaption>
+</figure>
 </section>
 <section id="load-inputs" class="level1">
 <h1>Load inputs</h1>
@@ -827,25 +831,6 @@ Figure&nbsp;3: Side-by-side comparison of fitted selectivity at age by year for 
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>yrs <span class="ot">&lt;-</span> data<span class="sc">$</span>first_yr_catch_f[<span class="dv">4</span>]<span class="sc">:</span>data<span class="sc">$</span>last_yr</span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_selectivity_comparison</span>(<span class="st">"LL4"</span>, <span class="at">years =</span> yrs)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</details>
-<div class="cell-output-display">
-<div id="fig-plot-sel-ll4" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-plot-sel-ll4-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<a href="Data_weighting_files/figure-html/fig-plot-sel-ll4-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-4" title="Figure&nbsp;4: Side-by-side comparison of fitted selectivity at age by year for the LL4 fleet."><img src="Data_weighting_files/figure-html/fig-plot-sel-ll4-1.png" class="img-fluid figure-img" width="960"></a>
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-plot-sel-ll4-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;4: Side-by-side comparison of fitted selectivity at age by year for the LL4 fleet.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
-<div class="cell">
-<details class="code-fold">
-<summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>yrs <span class="ot">&lt;-</span> data<span class="sc">$</span>first_yr_catch_f[<span class="dv">5</span>]<span class="sc">:</span>data<span class="sc">$</span>last_yr</span>
 <span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_selectivity_comparison</span>(<span class="st">"Indonesian"</span>, <span class="at">years =</span> yrs)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
@@ -1249,6 +1234,11 @@ Figure&nbsp;11: Mode and asymptotic density for natural mortality at age 10.
 <section id="osa-residuals-for-composition-fits" class="level1">
 <h1>OSA residuals for composition fits</h1>
 <p>The OSA diagnostics follow the multinomial composition-data residual approach described by <span class="citation" data-cites="StewartMonnahan2025">Stewart and Monnahan (<a href="#ref-StewartMonnahan2025" role="doc-biblioref">2025</a>)</span> and implemented in <code>afscOSA</code>. When <code>afscOSA</code> is available it is used directly; otherwise the same sequential multinomial randomized quantile residual calculation is evaluated in this vignette. The current SBT likelihoods use KL-divergence weights for age and length compositions, so these OSA plots are used as a diagnostic only. The calculations use the model composition sample sizes as <code>N</code>, the fitted expected proportions from each model, and the bins used by each composition likelihood. The aggregate-fit panels are calculated as input-sample-size weighted proportions, <code>sum_y N_y p_y / sum_y N_y</code>, separately for the observed and fitted compositions. The annual sample sizes used as multinomial <code>N</code> values are shown for the age-composition diagnostics in <a href="#fig-osa-age-n" class="quarto-xref">Figure&nbsp;12</a>, the longline length-composition diagnostics in <a href="#fig-osa-lf-n" class="quarto-xref">Figure&nbsp;16</a>, and the CPUE length-composition diagnostics in <a href="#fig-osa-cpue-lf-n" class="quarto-xref">Figure&nbsp;20</a>. These sample sizes are shown once because the same input composition data are used for both models. Pearson residual bubble diagnostics are shown in <a href="#fig-osa-age-pearson" class="quarto-xref">Figure&nbsp;13</a>, <a href="#fig-osa-lf-pearson" class="quarto-xref">Figure&nbsp;17</a>, and <a href="#fig-osa-cpue-lf-pearson" class="quarto-xref">Figure&nbsp;21</a>. The residual Q-Q and aggregate-fit diagnostics are shown in <a href="#fig-osa-age-qq" class="quarto-xref">Figure&nbsp;14</a> and <a href="#fig-osa-age-agg" class="quarto-xref">Figure&nbsp;15</a> for age compositions, <a href="#fig-osa-lf-qq" class="quarto-xref">Figure&nbsp;18</a> and <a href="#fig-osa-lf-agg" class="quarto-xref">Figure&nbsp;19</a> for longline length compositions, and <a href="#fig-osa-cpue-lf-qq" class="quarto-xref">Figure&nbsp;22</a> and <a href="#fig-osa-cpue-lf-agg" class="quarto-xref">Figure&nbsp;23</a> for CPUE length compositions. The residual diagnostic figures are faceted with fleet rows and model columns.</p>
+<figure class="figure">
+<a href="osa_residual_framework_infographic.png" class="lightbox" data-gallery="quarto-lightbox-gallery-osa" title="Diagnosing lack-of-fit with Pearson and one-step-ahead residual diagnostics."><img src="osa_residual_framework_infographic.png" class="img-fluid figure-img" alt="Infographic comparing traditional Pearson residual diagnostics with one-step-ahead residual diagnostics for stock-assessment composition data. Pearson residuals use marginal expectations and can show correlated, skewed residuals, while OSA residuals use sequential conditioning and randomized quantile residuals to support standard-normal Q-Q and SDNR diagnostics."></a>
+<figcaption class="figure-caption">Diagnosing lack-of-fit with Pearson and one-step-ahead residual diagnostics.</figcaption>
+</figure>
+<p>The OSA residual framework summarized above is used here because composition residuals are not independent normal observations in their raw form. Traditional Pearson residual bubble plots remain useful for locating bins, years, or fleets with local misfit, but they are primarily a visual diagnostic and can inherit the correlation and skewness imposed by the multinomial composition constraint. OSA residuals instead evaluate each composition bin sequentially, conditional on the previous bins in that observation. With the randomized quantile step for discrete counts, a correctly specified multinomial diagnostic model should produce residuals that are approximately independent standard normal values. This makes the Q-Q plots and SDNR summaries interpretable as formal checks of tail behavior and residual scale, while the aggregate-fit and Pearson panels show where any lack of fit occurs in the observed composition data.</p>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
@@ -3758,18 +3748,6 @@ Stewart, Ian J., and Cole C. Monnahan. 2025. <span>“Diagnosing Common Sources 
 <span id="cb65-719"><a href="#cb65-719" aria-hidden="true" tabindex="-1"></a>yrs <span class="ot">&lt;-</span> data<span class="sc">$</span>first_yr_catch_f[<span class="dv">3</span>]<span class="sc">:</span>data<span class="sc">$</span>last_yr</span>
 <span id="cb65-720"><a href="#cb65-720" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_selectivity_comparison</span>(<span class="st">"LL3"</span>, <span class="at">years =</span> yrs)</span>
 <span id="cb65-721"><a href="#cb65-721" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb65-722"><a href="#cb65-722" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb65-725"><a href="#cb65-725" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb65-726"><a href="#cb65-726" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-plot-sel-ll4</span></span>
-<span id="cb65-727"><a href="#cb65-727" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: true</span></span>
-<span id="cb65-728"><a href="#cb65-728" aria-hidden="true" tabindex="-1"></a><span class="co">#| message: false</span></span>
-<span id="cb65-729"><a href="#cb65-729" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-height: 10</span></span>
-<span id="cb65-730"><a href="#cb65-730" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-width: 10</span></span>
-<span id="cb65-731"><a href="#cb65-731" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: Side-by-side comparison of fitted selectivity at age by year for the LL4 fleet.</span></span>
-<span id="cb65-732"><a href="#cb65-732" aria-hidden="true" tabindex="-1"></a>yrs <span class="ot">&lt;-</span> data<span class="sc">$</span>first_yr_catch_f[<span class="dv">4</span>]<span class="sc">:</span>data<span class="sc">$</span>last_yr</span>
-<span id="cb65-733"><a href="#cb65-733" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_selectivity_comparison</span>(<span class="st">"LL4"</span>, <span class="at">years =</span> yrs)</span>
-<span id="cb65-734"><a href="#cb65-734" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb65-735"><a href="#cb65-735" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb65-738"><a href="#cb65-738" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
 <span id="cb65-739"><a href="#cb65-739" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-plot-sel-indo</span></span>
 <span id="cb65-740"><a href="#cb65-740" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: true</span></span>
@@ -4085,6 +4063,22 @@ Stewart, Ian J., and Cole C. Monnahan. 2025. <span>“Diagnosing Common Sources 
 <span id="cb65-1070"><a href="#cb65-1070" aria-hidden="true" tabindex="-1"></a>compositions. The residual diagnostic figures are faceted with fleet rows and</span>
 <span id="cb65-1071"><a href="#cb65-1071" aria-hidden="true" tabindex="-1"></a>model columns.</span>
 <span id="cb65-1072"><a href="#cb65-1072" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb65-1072a"><a href="#cb65-1072a" aria-hidden="true" tabindex="-1"></a><span class="al">![Diagnosing lack-of-fit with Pearson and one-step-ahead residual diagnostics.](osa_residual_framework_infographic.png)</span>{#fig-osa-framework fig-alt="Infographic comparing traditional Pearson residual diagnostics with one-step-ahead residual diagnostics for stock-assessment composition data. Pearson residuals use marginal expectations and can show correlated, skewed residuals, while OSA residuals use sequential conditioning and randomized quantile residuals to support standard-normal Q-Q and SDNR diagnostics."}</span>
+<span id="cb65-1072b"><a href="#cb65-1072b" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb65-1072c"><a href="#cb65-1072c" aria-hidden="true" tabindex="-1"></a>The OSA residual framework summarized in @fig-osa-framework is used here</span>
+<span id="cb65-1072d"><a href="#cb65-1072d" aria-hidden="true" tabindex="-1"></a>because composition residuals are not independent normal observations in their</span>
+<span id="cb65-1072e"><a href="#cb65-1072e" aria-hidden="true" tabindex="-1"></a>raw form. Traditional Pearson residual bubble plots remain useful for locating</span>
+<span id="cb65-1072f"><a href="#cb65-1072f" aria-hidden="true" tabindex="-1"></a>bins, years, or fleets with local misfit, but they are primarily a visual</span>
+<span id="cb65-1072g"><a href="#cb65-1072g" aria-hidden="true" tabindex="-1"></a>diagnostic and can inherit the correlation and skewness imposed by the</span>
+<span id="cb65-1072h"><a href="#cb65-1072h" aria-hidden="true" tabindex="-1"></a>multinomial composition constraint. OSA residuals instead evaluate each</span>
+<span id="cb65-1072i"><a href="#cb65-1072i" aria-hidden="true" tabindex="-1"></a>composition bin sequentially, conditional on the previous bins in that</span>
+<span id="cb65-1072j"><a href="#cb65-1072j" aria-hidden="true" tabindex="-1"></a>observation. With the randomized quantile step for discrete counts, a correctly</span>
+<span id="cb65-1072k"><a href="#cb65-1072k" aria-hidden="true" tabindex="-1"></a>specified multinomial diagnostic model should produce residuals that are</span>
+<span id="cb65-1072l"><a href="#cb65-1072l" aria-hidden="true" tabindex="-1"></a>approximately independent standard normal values. This makes the Q-Q plots and</span>
+<span id="cb65-1072m"><a href="#cb65-1072m" aria-hidden="true" tabindex="-1"></a>SDNR summaries interpretable as formal checks of tail behavior and residual</span>
+<span id="cb65-1072n"><a href="#cb65-1072n" aria-hidden="true" tabindex="-1"></a>scale, while the aggregate-fit and Pearson panels show where any lack of fit</span>
+<span id="cb65-1072o"><a href="#cb65-1072o" aria-hidden="true" tabindex="-1"></a>occurs in the observed composition data.</span>
+<span id="cb65-1072p"><a href="#cb65-1072p" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb65-1075"><a href="#cb65-1075" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
 <span id="cb65-1076"><a href="#cb65-1076" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: osa-helpers</span></span>
 <span id="cb65-1077"><a href="#cb65-1077" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: true</span></span>

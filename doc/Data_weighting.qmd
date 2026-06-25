@@ -25,6 +25,8 @@ ADMB selectivity functions from `sbt_vs_admb.qmd`. Fishery 7 shares the fishery
 1 (LL1) selectivity. It is kept as a separate vignette so the default `sbt.qmd`
 model setup and package code are unaffected.
 
+![Workflow for weighting data components in stock assessment models.](data_weighting_workflow_infographic.png){#fig-data-weighting-workflow fig-alt="Infographic showing a stock assessment workflow for data weighting: inventory data, fit base model, diagnose conflict, choose weighting, refit and report, with common approaches and diagnostics."}
+
 # Load inputs
 
 ```{r}
@@ -681,17 +683,6 @@ plot_selectivity_comparison("LL3", years = yrs)
 ```
 
 ```{r}
-#| label: fig-plot-sel-ll4
-#| echo: true
-#| message: false
-#| fig-height: 10
-#| fig-width: 10
-#| fig-cap: Side-by-side comparison of fitted selectivity at age by year for the LL4 fleet.
-yrs <- data$first_yr_catch_f[4]:data$last_yr
-plot_selectivity_comparison("LL4", years = yrs)
-```
-
-```{r}
 #| label: fig-plot-sel-indo
 #| echo: true
 #| message: false
@@ -1005,6 +996,22 @@ age compositions, @fig-osa-lf-qq and @fig-osa-lf-agg for longline length
 compositions, and @fig-osa-cpue-lf-qq and @fig-osa-cpue-lf-agg for CPUE length
 compositions. The residual diagnostic figures are faceted with fleet rows and
 model columns.
+
+![Diagnosing lack-of-fit with Pearson and one-step-ahead residual diagnostics.](osa_residual_framework_infographic.png){#fig-osa-framework fig-alt="Infographic comparing traditional Pearson residual diagnostics with one-step-ahead residual diagnostics for stock-assessment composition data. Pearson residuals use marginal expectations and can show correlated, skewed residuals, while OSA residuals use sequential conditioning and randomized quantile residuals to support standard-normal Q-Q and SDNR diagnostics."}
+
+The OSA residual framework summarized in @fig-osa-framework is used here
+because composition residuals are not independent normal observations in their
+raw form. Traditional Pearson residual bubble plots remain useful for locating
+bins, years, or fleets with local misfit, but they are primarily a visual
+diagnostic and can inherit the correlation and skewness imposed by the
+multinomial composition constraint. OSA residuals instead evaluate each
+composition bin sequentially, conditional on the previous bins in that
+observation. With the randomized quantile step for discrete counts, a correctly
+specified multinomial diagnostic model should produce residuals that are
+approximately independent standard normal values. This makes the Q-Q plots and
+SDNR summaries interpretable as formal checks of tail behavior and residual
+scale, while the aggregate-fit and Pearson panels show where any lack of fit
+occurs in the observed composition data.
 
 ```{r}
 #| label: osa-helpers

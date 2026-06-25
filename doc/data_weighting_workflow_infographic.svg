@@ -1,0 +1,158 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">Infographic: approaches and workflow for weighting data components in stock assessment models</title>
+  <desc id="desc">A stock assessment workflow showing how to diagnose data conflict, choose data weighting approaches, refit models, and document sensitivity for review.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f7f8f8; }
+      .title { font: 700 42px Arial, sans-serif; fill: #17202a; }
+      .subtitle { font: 400 20px Arial, sans-serif; fill: #3c4856; }
+      .section-title { font: 700 24px Arial, sans-serif; fill: #17202a; }
+      .label { font: 700 18px Arial, sans-serif; fill: #17202a; }
+      .body { font: 400 17px Arial, sans-serif; fill: #24313f; }
+      .small { font: 400 15px Arial, sans-serif; fill: #3d4a57; }
+      .tiny { font: 400 13px Arial, sans-serif; fill: #4b5866; }
+      .card { fill: #ffffff; stroke: #cfd7df; stroke-width: 2; rx: 8; }
+      .phase { fill: #ffffff; stroke: #58708a; stroke-width: 2.2; rx: 8; }
+      .decision { fill: #fff8e8; stroke: #d6a84d; stroke-width: 2; rx: 8; }
+      .warn { fill: #fff1f0; stroke: #cc6b5a; stroke-width: 2; rx: 8; }
+      .ok { fill: #edf7f1; stroke: #65a37a; stroke-width: 2; rx: 8; }
+      .blue { fill: #eaf3f8; stroke: #5d91aa; stroke-width: 2; rx: 8; }
+      .green { fill: #edf7f1; stroke: #65a37a; stroke-width: 2; rx: 8; }
+      .gold { fill: #fff8e8; stroke: #d6a84d; stroke-width: 2; rx: 8; }
+      .rose { fill: #fff1f0; stroke: #cc6b5a; stroke-width: 2; rx: 8; }
+      .purple { fill: #f1eef8; stroke: #8f7fba; stroke-width: 2; rx: 8; }
+      .arrow { stroke: #52606d; stroke-width: 3; fill: none; marker-end: url(#arrowhead); }
+      .thin-arrow { stroke: #7b8794; stroke-width: 2; fill: none; marker-end: url(#smallarrow); }
+      .rule { stroke: #c3cbd4; stroke-width: 2; }
+      .pill { fill: #eef2f5; stroke: #c3cbd4; stroke-width: 1.5; rx: 14; }
+      .num { font: 700 22px Arial, sans-serif; fill: #ffffff; }
+      .numcircle { fill: #39536d; }
+    </style>
+    <marker id="arrowhead" markerWidth="12" markerHeight="10" refX="10" refY="5" orient="auto">
+      <path d="M 0 0 L 12 5 L 0 10 z" fill="#52606d"/>
+    </marker>
+    <marker id="smallarrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto">
+      <path d="M 0 0 L 10 4 L 0 8 z" fill="#7b8794"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1600" height="1000"/>
+
+  <text class="title" x="64" y="70">Weighting data components in stock assessment models</text>
+  <text class="subtitle" x="66" y="105">Goal: balance information content without masking data conflict or tuning the model to a preferred outcome.</text>
+
+  <rect class="pill" x="64" y="135" width="272" height="34"/>
+  <text class="small" x="84" y="158">Indices: CPUE and surveys</text>
+  <rect class="pill" x="356" y="135" width="282" height="34"/>
+  <text class="small" x="376" y="158">Compositions: length and age</text>
+  <rect class="pill" x="658" y="135" width="228" height="34"/>
+  <text class="small" x="678" y="158">Tagging and movement</text>
+  <rect class="pill" x="906" y="135" width="238" height="34"/>
+  <text class="small" x="926" y="158">Recruitment signals</text>
+  <rect class="pill" x="1164" y="135" width="310" height="34"/>
+  <text class="small" x="1184" y="158">Prior information and penalties</text>
+
+  <text class="section-title" x="64" y="220">Workflow</text>
+
+  <rect class="phase" x="64" y="246" width="220" height="164"/>
+  <circle class="numcircle" cx="94" cy="276" r="18"/><text class="num" x="88" y="284">1</text>
+  <text class="label" x="122" y="282">Inventory data</text>
+  <text class="body" x="86" y="316">Record fleets, years,</text>
+  <text class="body" x="86" y="340">sample sizes, CVs,</text>
+  <text class="body" x="86" y="364">selectivity links, and</text>
+  <text class="body" x="86" y="388">known issues.</text>
+
+  <path class="arrow" d="M 292 317 H 348"/>
+
+  <rect class="phase" x="356" y="246" width="220" height="164"/>
+  <circle class="numcircle" cx="386" cy="276" r="18"/><text class="num" x="380" y="284">2</text>
+  <text class="label" x="414" y="282">Fit base model</text>
+  <text class="body" x="378" y="316">Use defensible input</text>
+  <text class="body" x="378" y="340">weights first. Check</text>
+  <text class="body" x="378" y="364">convergence, gradients,</text>
+  <text class="body" x="378" y="388">residual patterns.</text>
+
+  <path class="arrow" d="M 584 317 H 640"/>
+
+  <rect class="decision" x="648" y="246" width="250" height="164"/>
+  <circle class="numcircle" cx="678" cy="276" r="18"/><text class="num" x="672" y="284">3</text>
+  <text class="label" x="706" y="282">Diagnose conflict</text>
+  <text class="body" x="670" y="316">Look for residual bias,</text>
+  <text class="body" x="670" y="340">SDNR, OSA patterns,</text>
+  <text class="body" x="670" y="364">effective N mismatch,</text>
+  <text class="body" x="670" y="388">leverage on scale.</text>
+
+  <path class="arrow" d="M 906 317 H 962"/>
+
+  <rect class="phase" x="970" y="246" width="238" height="164"/>
+  <circle class="numcircle" cx="1000" cy="276" r="18"/><text class="num" x="994" y="284">4</text>
+  <text class="label" x="1028" y="282">Choose weighting</text>
+  <text class="body" x="992" y="316">Adjust observation</text>
+  <text class="body" x="992" y="340">error, composition N,</text>
+  <text class="body" x="992" y="364">or likelihood form.</text>
+  <text class="body" x="992" y="388">arbitrary tuning.</text>
+
+  <path class="arrow" d="M 1216 317 H 1272"/>
+
+  <rect class="ok" x="1280" y="246" width="250" height="164"/>
+  <circle class="numcircle" cx="1310" cy="276" r="18"/><text class="num" x="1304" y="284">5</text>
+  <text class="label" x="1338" y="282">Refit and report</text>
+  <text class="body" x="1302" y="316">Compare diagnostics,</text>
+  <text class="body" x="1302" y="340">reference points, and</text>
+  <text class="body" x="1302" y="364">retrospectives. Carry</text>
+  <text class="body" x="1302" y="388">sensitivities forward.</text>
+
+  <path class="thin-arrow" d="M 1404 422 C 1404 454 1020 450 1020 422"/>
+  <text class="tiny" x="1112" y="468">Iterate only when diagnostics identify a specific problem</text>
+
+  <line class="rule" x1="64" y1="492" x2="1530" y2="492"/>
+
+  <text class="section-title" x="64" y="536">Common approaches</text>
+
+  <rect class="blue" x="64" y="564" width="336" height="150"/>
+  <text class="label" x="88" y="598">Observation-error scaling</text>
+  <text class="body" x="88" y="634">Apply to abundance indices,</text>
+  <text class="body" x="88" y="658">survey biomass, or CPUE.</text>
+  <text class="small" x="88" y="692">Levers: extra SD, CV inflation, robust tails.</text>
+
+  <rect class="green" x="430" y="564" width="336" height="150"/>
+  <text class="label" x="454" y="598">Composition sample-size tuning</text>
+  <text class="body" x="454" y="634">Use for age or length data when</text>
+  <text class="body" x="454" y="658">input N overstates information.</text>
+  <text class="small" x="454" y="692">Levers: Francis, McAllister-Ianelli, caps.</text>
+
+  <rect class="gold" x="796" y="564" width="336" height="150"/>
+  <text class="label" x="820" y="598">Alternative likelihoods</text>
+  <text class="body" x="820" y="634">Change the error model when the</text>
+  <text class="body" x="820" y="658">data-generating process is wrong.</text>
+  <text class="small" x="820" y="692">Options: Dirichlet-multinomial, logistic-normal.</text>
+
+  <rect class="purple" x="1162" y="564" width="336" height="150"/>
+  <text class="label" x="1186" y="598">Model-structure fixes</text>
+  <text class="body" x="1186" y="634">Do not solve structural conflict by</text>
+  <text class="body" x="1186" y="658">weighting alone.</text>
+  <text class="small" x="1186" y="692">Check selectivity, timing, pooling, growth.</text>
+
+  <text class="section-title" x="64" y="766">Diagnostics to show reviewers</text>
+  <rect class="card" x="64" y="794" width="310" height="118"/>
+  <text class="label" x="88" y="828">Fit to observations</text>
+  <text class="body" x="88" y="864">Residuals by fleet, year,</text>
+  <text class="body" x="88" y="888">age, and length bin.</text>
+
+  <rect class="card" x="404" y="794" width="310" height="118"/>
+  <text class="label" x="428" y="828">Information balance</text>
+  <text class="body" x="428" y="864">Input N vs effective N,</text>
+  <text class="body" x="428" y="888">SDNR, OSA residuals.</text>
+
+  <rect class="card" x="744" y="794" width="310" height="118"/>
+  <text class="label" x="768" y="828">Management sensitivity</text>
+  <text class="body" x="768" y="864">Spawning biomass, recruitment,</text>
+  <text class="body" x="768" y="888">F, reference points, projections.</text>
+
+  <rect class="warn" x="1084" y="794" width="414" height="118"/>
+  <text class="label" x="1108" y="828">Decision rule</text>
+  <text class="body" x="1108" y="864">Adopt weights only when diagnostics improve</text>
+  <text class="body" x="1108" y="888">without hiding conflict or creating new bias.</text>
+
+  <text class="tiny" x="64" y="952">Use in assessment appendices or working papers: describe the initial assumption, diagnostic trigger, selected adjustment, sensitivity range, and effect on management quantities.</text>
+</svg>

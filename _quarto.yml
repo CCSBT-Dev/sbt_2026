@@ -34,8 +34,13 @@ resources:
   - OMMP16/OMMP16.pdf
   - OMMP16/OMMP16_files/**
   - doc/NewLengthFreq.pdf
+  - doc/lf_gam_cpue_sbt_fishery_length_freq.csv
   - doc/Data_weighting.html
   - doc/Data_weighting.pdf
+  - doc/data_weighting_workflow_infographic.svg
+  - doc/data_weighting_workflow_infographic.png
+  - doc/data_weighting_workflow_infographic.pdf
+  - doc/osa_residual_framework_infographic.png
   - doc/Data_weighting_files/**
   - images/**
   - site.webmanifest

@@ -311,6 +311,35 @@ lf_gam_wide <- lf_gam %>%
     values_from = prop_gam,
     values_fill = 0
   )
+
+sbt_length_bins <- as.character(seq(32, 250, by = 2))
+lf_gam_sbt_wide <- lf_gam |>
+  mutate(length_bin = pmin(pmax(length_bin, 32), 250)) |>
+  group_by(year, length_bin) |>
+  summarise(prop_gam = sum(prop_gam), .groups = "drop") |>
+  pivot_wider(
+    names_from = length_bin,
+    values_from = prop_gam,
+    values_fill = 0
+  )
+
+ll1_n_by_year <- assessment_length_freq |>
+  filter(Fishery == 1) |>
+  distinct(Year, N)
+
+lf_gam_sbt_fishery <- lf_gam_sbt_wide |>
+  rename(Year = year) |>
+  mutate(Fishery = 1L, .before = Year) |>
+  left_join(ll1_n_by_year, by = "Year") |>
+  relocate(N, .after = Year)
+
+missing_bins <- setdiff(sbt_length_bins, names(lf_gam_sbt_fishery))
+lf_gam_sbt_fishery[missing_bins] <- 0
+lf_gam_sbt_fishery <- lf_gam_sbt_fishery |>
+  select(Fishery, Year, N, all_of(sbt_length_bins)) |>
+  arrange(Fishery, Year)
+
+write_csv(lf_gam_sbt_fishery, here("doc", "lf_gam_cpue_sbt_fishery_length_freq.csv"))
 # lf_gam_wide
 #sdf       <-  pivot_longer(df,names_to="age",values_to="sel",cols=2:(nages+1)) %>% filter(Year>=styr) %>% mutate(age=as.numeric(age)) #+ arrange(age,yr)
 #names(lf_gam)
@@ -325,6 +354,8 @@ p1  <- ggplot(lf_gam,aes(x=length_bin,y=as.factor(year),height = prop_gam)) + ge
          scale_y_discrete(limits=rev(levels(as.factor(lf_gam$year))))
 p1
 ```
+
+The Figure 2 GAM CPUE length-frequency matrix is written in SBT fishery length-composition format as [`lf_gam_cpue_sbt_fishery_length_freq.csv`](lf_gam_cpue_sbt_fishery_length_freq.csv).
 
 ```{r}
 #| label: fig-mod_lf

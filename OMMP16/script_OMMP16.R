@@ -45,19 +45,19 @@ data <- list(
   scenarios_surf = scenarios_surface, scenarios_LL1 = scenarios_LL1,
   removal_switch_f = c(0, 0, 0, 1, 0, 0), # 0=harvest rate, 1=direct removals
   # removal_switch_f = c(0, 0, 0, 0, 0, 0), # 0=harvest rate, 1=direct removals
-  sel_min_age_f = c(2, 2, 2, 8, 6, 0, 2),
+  sel_min_age_f = c(2, 2, 2, 8, 6, 0, 4),
   # sel_max_age_f = c(17, 9, 17, 22, 25, 7, 17),
   sel_max_age_f = c(17, 9, 17, 21, 25, 7, 17),
   sel_end_f = c(1, 0, 1, 1, 1, 0, 1), # 0=zero, 1=constant
   sel_LL1_yrs = c(1952, 1957, 1961, 1965, 1969, 1973, 1977, 1981, 1985, 1989, 1993, 1997, 2001, 2006, 2007, 2008, 2011, 2014, 2017, 2020, 2023),
-  sel_LL2_yrs = c(1969, 2001, 2005, 2008, 2011, 2014, 2017, 2020),
+  sel_LL2_yrs = c(1969, 2001, 2005, 2008, 2011, 2014, 2017, 2020, 2023),
   sel_LL3_yrs = c(1954, 1961, 1965, 1969, 1970, 1971, 2005, 2006, 2007),
   sel_LL4_yrs = c(1953),
   sel_Ind_yrs = c(1976, 1995, 1997, 1999, 2002, 2004, 2006, 2008, 2010, 2012:2022),
   sel_Aus_yrs = c(1952, 1969, 1973, 1977, 1981, 1985, 1989, 1993, 1997:2025),
   sel_CPUE_yrs = c(1969, 1973, 1977, 1981, 1985, 1989, 1993, 1997, 2001, 2006, 2007, 2008, 2011, 2014, 2017, 2020),
-  af_switch = 2, # 1=multinomial, 2=Dirichlet, 3=Dirichlet-multinomial, 9=old
-  lf_switch = 2, lf_minbin = c(1, 1, 1, 11),
+  af_switch = 1, # 1=multinomial, 2=Dirichlet, 3=Dirichlet-multinomial
+  lf_switch = 1, lf_minbin = c(1, 1, 1, 11, 5),
   cpue_switch = 1, cpue_a1 = 5, cpue_a2 = 17,
   aerial_switch = 4, aerial_tau = 0.3, 
   troll_switch = 0, 
@@ -158,23 +158,27 @@ obs_fix <- repair_af_slices_weighted(
 data$af_sliced_ysfa <- obs_fix$af_ysfa
 check_sliced(data)
 
-# proj_fix <- repair_af_slices_weighted(
-#   catch_ysf = proj_catch_ysf,
-#   af_ysfa   = proj_af_sliced_ysfa,
-#   N = 3, p = 1
-# )
-# proj_af_sliced_ysfa <- proj_fix$af_ysfa
-
 # Parameters ----
 
 parameters <- get_parameters(data = data)
+
+# Concentration parameters for Dirichlet (these parameters were estimated then fixed)
+exp(parameters$par_log_af_alpha)
+exp(parameters$par_log_lf_alpha)
 parameters$par_log_af_alpha <- log(c(2.883218, 2.961879))
 parameters$par_log_lf_alpha <- log(c(5.888388, 13.08122, 4.737597, 1, 6.198235))
 
-parameters1 <- parameters
+# parameters1 <- parameters
+
+exp(parameters$par_log_h)
 parameters$par_log_h <- log(0.72)
-# parameters$par_log_psi <- log(1.75)
+parameters$par_log_psi <- log(1.75)
 parameters$par_log_psi <- log(1.25)
+
+parameters$par_sel_rho_a[2] <- 0.5
+parameters$par_sel_rho_y[2] <- 0.7
+parameters$par_log_sel_sigma[2] <- log(0.5)
+
 parameters$par_sel_rho_a[5] <- 0.95
 parameters$par_sel_rho_y[5] <- 0.6
 parameters$par_log_sel_sigma[5] <- log(0.2)
@@ -187,50 +191,80 @@ tibble(
   sigma = exp(parameters2$par_log_sel_sigma)
 )
 
-exp(parameters$par_log_h)
-exp(parameters$par_log_af_alpha)
-exp(parameters$par_log_lf_alpha)
-
-map <- get_map(parameters = parameters1)
+map <- get_map(parameters = parameters)
 map$par_log_m0 <- NULL
 map$par_log_m10 <- NULL
-map$par_log_af_alpha <- NULL
-map$par_log_lf_alpha <- factor(c(1, 2, 3, NA, 4))
+# map$par_log_af_alpha <- NULL
+# map$par_log_lf_alpha <- factor(c(1, 2, 3, NA, 4))
 
-data$priors <- get_priors(parameters = parameters1)
-evaluate_priors(parameters = parameters1, priors = data$priors)
+data$priors <- get_priors(parameters = parameters)
+evaluate_priors(parameters = parameters, priors = data$priors)
 
-obj1 <- MakeADFun(func = cmb(sbt_model, data), parameters = parameters1, map = map)
-obj2 <- MakeADFun(func = cmb(sbt_model, data), parameters = parameters2, map = map)
+obj <- MakeADFun(func = cmb(sbt_model, data), parameters = parameters, map = map)
+# obj2 <- MakeADFun(func = cmb(sbt_model, data), parameters = parameters2, map = map)
 
-bounds <- get_bounds(obj = obj1, parameters = parameters1)
+bounds <- get_bounds(obj = obj, parameters = parameters)
 
-unique(names(obj1$par))
+unique(names(obj$par))
 # obj$report()$lp_lf
 # obj$report()$lp_af
-obj1$fn()
+obj$fn()
 
 # Optimise a single grid cell ----
 
 control <- list(eval.max = 10000, iter.max = 10000)
 
-opt1 <- nlminb(start = obj1$par, objective = obj1$fn, gradient = obj1$gr, hessian = obj1$he,
+opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, hessian = obj$he,
               lower = bounds$lower, upper = bounds$upper, control = control)
-opt1 <- nlminb(start = opt1$par, objective = obj1$fn, gradient = obj1$gr, hessian = obj1$he,
+opt <- nlminb(start = opt$par, objective = obj$fn, gradient = obj$gr, hessian = obj$he,
               lower = bounds$lower, upper = bounds$upper, control = control)
 
-opt2 <- nlminb(start = obj2$par, objective = obj2$fn, gradient = obj2$gr, hessian = obj2$he,
-               lower = bounds$lower, upper = bounds$upper, control = control)
-opt2 <- nlminb(start = opt2$par, objective = obj2$fn, gradient = obj2$gr, hessian = obj2$he,
-               lower = bounds$lower, upper = bounds$upper, control = control)
-
-check_estimability(obj = obj2)
+check_estimability(obj = obj)
 # ce <- check_estimability(obj = obj)
 # ce[[4]] %>% filter(Param_check != "OK"
-obj1$env$last.par.best[1:13]
-exp(obj1$env$last.par.best[1:13])
+obj$env$last.par.best[1:13]
+exp(obj$env$last.par.best[1:13])
+plot_selectivity(data = data, object = obj, years = 1:3000, fisheries = "CPUE")
+plot_cpue_lf(data = data, object = obj)
+
+# Try turning on random effects ----
+
+map2 <- map
+map2$par_sel_rho_y <- factor(c(NA, NA, NA, NA, 1, NA, NA))
+map2$par_sel_rho_a <- factor(c(NA, NA, NA, NA, 1, NA, NA))
+map2$par_log_sel_sigma <- factor(c(NA, NA, NA, NA, 1, NA, NA))
+parameters2 <- obj$env$parList(obj$env$last.par.best)
+obj2 <- MakeADFun(func = cmb(sbt_model, data), parameters = parameters2, map = map2, 
+                  random = "par_log_sel_5")
+bounds2 <- get_bounds(obj = obj2, parameters = parameters2)
+opt2 <- nlminb(start = obj2$par, objective = obj2$fn, gradient = obj2$gr,
+               lower = bounds2$lower, upper = bounds2$upper, control = control)
+opt2 <- nlminb(start = opt2$par, objective = obj2$fn, gradient = obj2$gr,
+               lower = bounds2$lower, upper = bounds2$upper, control = control)
+
+plot_cpue_lf(data = data, object = obj2)
+plot_selectivity(data = data, object = obj2, years = 1:3000, fisheries = "CPUE")
+plot_selectivity(data = data, object = obj2, years = 1:3000, fisheries = "Indonesian")
+plot_selectivity(data = data, object = obj2, years = 1:3000, fisheries = "LL1")
+plot_af(data = data, object = obj2, fishery = "Indonesian")
+plot_hsps(data, obj2)
+obj2$env$last.par.best[1:10]
 
 # Inspect model outputs ----
+
+plot_selectivity(data = data, object = obj, years = 1:3000, fisheries = "LL1")
+plot_selectivity(data = data, object = obj, years = 1:3000, fisheries = "LL2")
+plot_selectivity(data = data, object = obj, years = 1:3000, fisheries = "LL3")
+# plot_selectivity(data = data, object = obj, years = 1:3000, fisheries = "LL4")
+plot_selectivity(data = data, object = obj, years = 1:3000, fisheries = "Indonesian")
+plot_selectivity(data = data, object = obj, years = 1:3000, fisheries = "Australian")
+
+plot_cpue_residuals(data, obj)
+plot_gt_residuals(data, obj)
+plot_hsp_residuals(data, obj)
+plot_pop_residuals(data, obj)
+# plot_tag_residuals
+plot_hsps(data, obj)
 
 p1 <- plot_hsps(data, obj1)
 p2 <- plot_hsps(data, obj2)
@@ -340,11 +374,11 @@ if (!run_mcmc) quit(save = "no")
 # MCMC for single grid cell ----
 
 mcmc <- sample_snuts(
-  obj = obj, metric = "auto", num_samples = 250, num_warmup = 750,
+  obj = obj, metric = "auto", num_samples = 3, num_warmup = 3,
   # iter = 1000, warmup = 750, chains = 4, cores = 4,
   # obj = obj, metric = "auto", iter = 2000, chains = 4, cores = 4,
   control = list(adapt_delta = 0.99), init = "last.par.best",
-  # lower = bnd$lower, upper = bnd$upper, # these bounds dont seem to work
+  # lower = bounds$lower, upper = bounds$upper, # these bounds dont seem to work
   globals = sbt_globals())
 
 save(data, parameters, obj, opt, mcmc, file = paste0("mcmc_", run_suffix, ".rda"))
@@ -376,23 +410,116 @@ decamod::pairs_rtmb(fit = mcmc, order = "divergent", pars = 1:5)
 
 # Do grid of MCMCs ----
 
+map$par_log_h <- NULL
+obj <- MakeADFun(func = cmb(sbt_model, data), parameters = parameters, map = map)
+lincomb <- numeric(length(obj$par))
+lincomb[1] <- 1
+lincomb[1] <- 6
+# x2 <- TMB::tmbprofile(obj, lincomb = lincomb)
+x2 <- TMB::tmbprofile(obj, name = "par_log_h", parm.range = c(-0.15, -0.1), ystep = 0.001)
+plot(x2)
+
+hh <- seq(0.8, 0.55, length.out = 8)
+nll <- numeric(length(hh))
+for (i in 1:length(hh)) {
+  parameters$par_log_h <- log(hh[i])
+  obj <- MakeADFun(func = cmb(sbt_model, data), parameters = parameters, map = map)
+  opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, hessian = obj$he, 
+                lower = bounds$lower, upper = bounds$upper, control = control)
+  opt <- nlminb(start = opt$par, objective = obj$fn, gradient = obj$gr, hessian = obj$he, 
+                lower = bounds$lower, upper = bounds$upper, control = control)
+  nll[i] <- obj$fn(opt$par)
+}
+plot(hh, nll, type = "l")
+
 # mcmc_list <- list()
 # obj_list <- list()
+run_suffix <- "test_grid"
 grd <- expand.grid(h = c(0.55, 0.63, 0.72, 0.8), psi = c(1.5, 1.75, 2))
-
 grid_dir <- paste0("grid1_", run_suffix)
 dir.create(grid_dir)
 for (i in 1:nrow(grd)) {
   parameters$par_log_h <- log(grd$h[i])
   parameters$par_log_psi <- log(grd$psi[i])
   obj <- MakeADFun(func = cmb(sbt_model, data), parameters = parameters, map = map)
-  opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, hessian = obj$he, lower = bnd$lower, upper = bnd$upper, control = control)
-  mcmc <- sample_sparse_tmb(obj = obj, metric = "auto", iter = 1000, warmup = 750, chains = 4, cores = 4,
-                            # lower = Lwr, upper = Upr, # these bounds dont seem to work
-                            control = list(adapt_delta = 0.99), init = "last.par.best", globals = sbt_globals())
+  opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, hessian = obj$he, 
+                lower = bounds$lower, upper = bounds$upper, control = control)
+  opt <- nlminb(start = opt$par, objective = obj$fn, gradient = obj$gr, hessian = obj$he, 
+                lower = bounds$lower, upper = bounds$upper, control = control)
+  
+  # Q <- obj$he(opt$par) # Qinv and use metric dense
+  # sdreport(obj, hessian.fixed = Q)
+  # x <- TMB::tmbprofile(obj, "par_log_B0")
+  # x2 <- sbtprofile(obj, name = "par_log_B0")
+  # plot_profile(obj = obj, x = x2, xlab = "B0")
+  
+  # he <- obj$he()
+  # he_inv <- solve(he)
+  # he_ch <- chol(he)
+  # ev <- eigen(he)
+  # range(ev$values)
+
+  mcmc <- sample_snuts(
+    obj = obj, 
+    # metric = "auto", # set this to dense?
+    metric = "dense", # set this to dense?
+    num_samples = 500, num_warmup = 150,
+    # iter = 1000, warmup = 750, chains = 4, cores = 4,
+    # obj = obj, metric = "auto", iter = 2000, chains = 4, cores = 4,
+    control = list(adapt_delta = 0.99), init = "last.par.best",
+    # lower = bnd$lower, upper = bnd$upper, # these bounds dont seem to work
+    skip_optimization = TRUE,
+    Qinv = obj$he(obj$env$last.par.best),
+    globals = sbt_globals())
+  
   save(opt, mcmc, file = paste0(grid_dir, "/grid", i, ".rda"))
   # obj_list[[i]] <- obj
   # mcmc_list[[i]] <- mcmc
+}
+
+load("grid1_test_grid/grid5.rda")
+plot_marginals(fit = mcmc, pars = 1:6)
+pairs(mcmc, pars = 1:8)
+decamod::pairs_rtmb(fit = mcmc, order = "slow", pars = 1:5)
+decamod::pairs_rtmb(fit = mcmc, order = "mismatch", pars = 1:5)
+decamod::pairs_rtmb(fit = mcmc, order = "fast", pars = 1:5)
+plot_sampler_params(fit = mcmc, plot = TRUE)
+
+load("grid1_test_grid/grid2.rda")
+mcmc1 <- mcmc
+load("grid1_test_grid/grid3.rda")
+mcmc2 <- mcmc
+
+grid_mcmc_to_tmbfit <- function(data, parameters, grid, grid_parameters, grid_cells) {
+  map <- get_map(parameters = parameters)
+  map$par_log_psi <- NULL
+  map$par_log_m0 <- NULL
+  map$par_log_m10 <- NULL
+  map$par_log_h <- NULL
+  obj <- MakeADFun(func = cmb(sbt_model, data), parameters = parameters, map = map)
+  parnames <- names(obj$par)
+  n_samples <- length(grid_cells$grid_cells)
+  samples <- array(dim = c(n_samples, 1, length(obj$par)), dimnames = list(NULL, NULL, parnames))
+  for (i in 1:n_samples) {
+    j <- grid_cells$grid_cells[i]
+    # obj$env$parList() alternatively could use this below?
+    samples[i, 1,] <- c(grid[[j]]$par[1], # par_log_B0
+                        grid_parameters[[j]]$par_log_psi, 
+                        grid_parameters[[j]]$par_log_m0, 
+                        grid[[j]]$par[2], # par_log_m4
+                        grid_parameters[[j]]$par_log_m10,
+                        grid[[j]]$par[3], # par_log_m30
+                        grid_parameters[[j]]$par_log_h,
+                        grid[[j]]$par[-c(1:3)])
+  }
+  # getS3method("print", "tmbfit")
+  # Create tmbfit object
+  x <- list(samples = samples, sampler_params = list(), mle = NULL,
+            monitor = NULL, model = "RTMB", metric = "", par_names = parnames, 
+            max_treedepth = NA, warmup = 0, iter = n_samples, thin = 1, 
+            time.warmup = 0, time.sampling = NA, time.total = NA, algorithm = "grid")
+  class(x) <- c("tmbfit", "list")
+  return(x)
 }
 
 # save(mcmc_list, obj_list, file = "mcmc_grid46.rda")
@@ -404,3 +531,11 @@ for (i in 1:nrow(grd)) {
 # Projections ----
 
 # To do at OMMP16
+
+# proj_fix <- repair_af_slices_weighted(
+#   catch_ysf = proj_catch_ysf,
+#   af_ysfa   = proj_af_sliced_ysfa,
+#   N = 3, p = 1
+# )
+# proj_af_sliced_ysfa <- proj_fix$af_ysfa
+

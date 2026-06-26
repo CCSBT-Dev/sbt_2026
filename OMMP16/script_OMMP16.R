@@ -179,6 +179,10 @@ parameters$par_sel_rho_a[5] <- 0.95
 parameters$par_sel_rho_y[5] <- 0.6
 parameters$par_log_sel_sigma[5] <- log(0.2)
 
+parameters$par_sel_rho_a[7] <- 0.99
+parameters$par_sel_rho_y[7] <- 0.99
+parameters$par_log_sel_sigma[7] <- log(0.1)
+
 tibble(
   fishery = c("LL1", "LL2", "LL3", "LL4", "Indonesia", "Australia", "CPUE"),
   rho_a = parameters$par_sel_rho_a,
@@ -194,7 +198,6 @@ data$priors <- get_priors(parameters = parameters)
 evaluate_priors(parameters = parameters, priors = data$priors)
 
 obj <- MakeADFun(func = cmb(sbt_model, data), parameters = parameters, map = map)
-# obj2 <- MakeADFun(func = cmb(sbt_model, data), parameters = parameters2, map = map)
 
 bounds <- get_bounds(obj = obj, parameters = parameters)
 
@@ -217,26 +220,50 @@ check_estimability(obj = obj)
 # ce[[4]] %>% filter(Param_check != "OK"
 obj$env$last.par.best[1:13]
 exp(obj$env$last.par.best[1:13])
-plot_selectivity(data = data, object = obj, years = 1:3000, fisheries = "CPUE")
 plot_cpue_lf(data = data, object = obj)
+p1 <- plot_selectivity(data = data, object = obj, years = 1:3000, fisheries = "LL1")
+p2 <- plot_selectivity(data = data, object = obj, years = 1:3000, fisheries = "CPUE")
+p1 + p2
+
+# Profiling psi ----
+
+map_psi <- map
+map_psi$par_log_psi <- NULL
+par_psi <- obj$env$parList(obj$env$last.par.best)
+obj_psi <- MakeADFun(func = cmb(sbt_model, data), parameters = par_psi, map = map_psi)
+prof_psi1 <- sbtprofile(obj = obj_psi, name = "par_log_psi")
+plot_profile(obj = obj_psi, x = prof_psi1, xlab = "Psi")
+prof_psi2 <- TMB::tmbprofile(obj_psi1, name = "par_log_psi", parm.range = c(-0.15, -0.1))
 
 # Try turning on random effects ----
 
 map2 <- map
-map2$par_sel_rho_y <- factor(c(NA, NA, NA, NA, 1, NA, NA))
-map2$par_sel_rho_a <- factor(c(NA, NA, NA, NA, 1, NA, NA))
-map2$par_log_sel_sigma <- factor(c(NA, NA, NA, NA, 1, NA, NA))
+# map2$par_sel_rho_y <- factor(c(NA, NA, NA, NA, 1, NA, NA))
+# map2$par_sel_rho_a <- factor(c(NA, NA, NA, NA, 1, NA, NA))
+# map2$par_log_sel_sigma <- factor(c(NA, NA, NA, NA, 1, NA, NA))
+map2$par_sel_rho_y <- factor(c(1, NA, NA, NA, NA, NA, NA))
+map2$par_sel_rho_a <- factor(c(1, NA, NA, NA, NA, NA, NA))
+map2$par_log_sel_sigma <- factor(c(1, NA, NA, NA, NA, NA, NA))
 parameters2 <- obj$env$parList(obj$env$last.par.best)
-parameters2$par_sel_rho_y
-parameters2$par_sel_rho_a
-parameters2$par_log_sel_sigma
+parameters2$par_sel_rho_y[5] <- 0.9561889
+parameters2$par_sel_rho_a[5] <- 0.9999999
+parameters2$par_log_sel_sigma[5] <- -1.7565783
+
+tibble(
+  fishery = c("LL1", "LL2", "LL3", "LL4", "Indonesia", "Australia", "CPUE"),
+  rho_a = parameters2$par_sel_rho_a,
+  rho_y = parameters2$par_sel_rho_y,
+  sigma = exp(parameters2$par_log_sel_sigma)
+)
+
 obj2 <- MakeADFun(func = cmb(sbt_model, data), parameters = parameters2, map = map2, 
-                  random = "par_log_sel_5")
+                  random = c("par_log_sel_1"))
 bounds2 <- get_bounds(obj = obj2, parameters = parameters2)
 opt2 <- nlminb(start = obj2$par, objective = obj2$fn, gradient = obj2$gr,
                lower = bounds2$lower, upper = bounds2$upper, control = control)
 opt2 <- nlminb(start = opt2$par, objective = obj2$fn, gradient = obj2$gr,
                lower = bounds2$lower, upper = bounds2$upper, control = control)
+opt2$par[7:9]
 
 plot_cpue_lf(data = data, object = obj2)
 plot_selectivity(data = data, object = obj2, years = 1:3000, fisheries = "CPUE")

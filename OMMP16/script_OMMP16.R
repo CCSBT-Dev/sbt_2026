@@ -57,7 +57,7 @@ data <- list(
   sel_Aus_yrs = c(1952, 1969, 1973, 1977, 1981, 1985, 1989, 1993, 1997:2025),
   sel_CPUE_yrs = c(1969, 1973, 1977, 1981, 1985, 1989, 1993, 1997, 2001, 2006, 2007, 2008, 2011, 2014, 2017, 2020),
   af_switch = 1, # 1=multinomial, 2=Dirichlet, 3=Dirichlet-multinomial
-  lf_switch = 1, lf_minbin = c(1, 1, 1, 11, 5),
+  lf_switch = 1, lf_minbin = c(1, 1, 1, 11, 6), # seq(87.5, 184, 4)
   cpue_switch = 1, cpue_a1 = 5, cpue_a2 = 17,
   aerial_switch = 4, aerial_tau = 0.3, 
   troll_switch = 0, 
@@ -69,6 +69,10 @@ data <- list(
 )
 
 data <- get_data(data_in = data)
+
+plot(seq(87.5, 184, 4), data$cpue_lfs[57,], type = "b")
+lines(as.numeric(names(length_freq)[4:113]), length_freq[270, 4:113], col = 2, type = "b")
+abline(h = 0)
 
 # Need to fix sliced LFs ----
 
@@ -162,18 +166,10 @@ check_sliced(data)
 
 parameters <- get_parameters(data = data)
 
-# Concentration parameters for Dirichlet (these parameters were estimated then fixed)
-exp(parameters$par_log_af_alpha)
-exp(parameters$par_log_lf_alpha)
-parameters$par_log_af_alpha <- log(c(2.883218, 2.961879))
-parameters$par_log_lf_alpha <- log(c(5.888388, 13.08122, 4.737597, 1, 6.198235))
-
-# parameters1 <- parameters
-
 exp(parameters$par_log_h)
 parameters$par_log_h <- log(0.72)
 parameters$par_log_psi <- log(1.75)
-parameters$par_log_psi <- log(1.25)
+# parameters$par_log_psi <- log(1.25)
 
 parameters$par_sel_rho_a[2] <- 0.5
 parameters$par_sel_rho_y[2] <- 0.7
@@ -182,20 +178,17 @@ parameters$par_log_sel_sigma[2] <- log(0.5)
 parameters$par_sel_rho_a[5] <- 0.95
 parameters$par_sel_rho_y[5] <- 0.6
 parameters$par_log_sel_sigma[5] <- log(0.2)
-parameters2 <- parameters
 
 tibble(
   fishery = c("LL1", "LL2", "LL3", "LL4", "Indonesia", "Australia", "CPUE"),
-  rho_a = parameters2$par_sel_rho_a,
-  rho_y = parameters2$par_sel_rho_y,
-  sigma = exp(parameters2$par_log_sel_sigma)
+  rho_a = parameters$par_sel_rho_a,
+  rho_y = parameters$par_sel_rho_y,
+  sigma = exp(parameters$par_log_sel_sigma)
 )
 
 map <- get_map(parameters = parameters)
 map$par_log_m0 <- NULL
 map$par_log_m10 <- NULL
-# map$par_log_af_alpha <- NULL
-# map$par_log_lf_alpha <- factor(c(1, 2, 3, NA, 4))
 
 data$priors <- get_priors(parameters = parameters)
 evaluate_priors(parameters = parameters, priors = data$priors)
@@ -234,6 +227,9 @@ map2$par_sel_rho_y <- factor(c(NA, NA, NA, NA, 1, NA, NA))
 map2$par_sel_rho_a <- factor(c(NA, NA, NA, NA, 1, NA, NA))
 map2$par_log_sel_sigma <- factor(c(NA, NA, NA, NA, 1, NA, NA))
 parameters2 <- obj$env$parList(obj$env$last.par.best)
+parameters2$par_sel_rho_y
+parameters2$par_sel_rho_a
+parameters2$par_log_sel_sigma
 obj2 <- MakeADFun(func = cmb(sbt_model, data), parameters = parameters2, map = map2, 
                   random = "par_log_sel_5")
 bounds2 <- get_bounds(obj = obj2, parameters = parameters2)

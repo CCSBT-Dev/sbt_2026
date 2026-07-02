@@ -44,7 +44,6 @@ data <- list(
   catch_UR_on = 0, catch_surf_case = 1, catch_LL1_case = 1, 
   scenarios_surf = scenarios_surface, scenarios_LL1 = scenarios_LL1,
   removal_switch_f = c(0, 0, 0, 1, 0, 0), # 0=harvest rate, 1=direct removals
-  # removal_switch_f = c(0, 0, 0, 0, 0, 0), # 0=harvest rate, 1=direct removals
   sel_min_age_f = c(2, 2, 2, 8, 6, 0, 4),
   # sel_max_age_f = c(17, 9, 17, 22, 25, 7, 17),
   sel_max_age_f = c(17, 9, 17, 21, 25, 7, 17),
@@ -53,7 +52,7 @@ data <- list(
   sel_LL2_yrs = c(1969, 2001, 2005, 2008, 2011, 2014, 2017, 2020, 2023),
   sel_LL3_yrs = c(1954, 1961, 1965, 1969, 1970, 1971, 2005, 2006, 2007),
   sel_LL4_yrs = c(1953),
-  sel_Ind_yrs = c(1976, 1995, 1997, 1999, 2002, 2004, 2006, 2008, 2010, 2012:2022),
+  sel_Ind_yrs = c(1976, 1997, 1999, 2002, 2004, 2006, 2008, 2010, 2012:2021),
   sel_Aus_yrs = c(1952, 1969, 1973, 1977, 1981, 1985, 1989, 1993, 1997:2025),
   sel_CPUE_yrs = c(1969, 1973, 1977, 1981, 1985, 1989, 1993, 1997, 2001, 2006, 2007, 2008, 2011, 2014, 2017, 2020),
   af_switch = 1, # 1=multinomial, 2=Dirichlet, 3=Dirichlet-multinomial
@@ -74,94 +73,6 @@ plot(seq(87.5, 184, 4), data$cpue_lfs[57,], type = "b")
 lines(as.numeric(names(length_freq)[4:113]), length_freq[270, 4:113], col = 2, type = "b")
 abline(h = 0)
 
-# Need to fix sliced LFs ----
-
-repair_af_slices_weighted <- function(catch_ysf, af_ysfa,
-                                      N = 3L,
-                                      p = 1,
-                                      eps = 1e-12,
-                                      expand_if_empty = TRUE,
-                                      verbose = TRUE) {
-  # Setup basic dimension variables
-  d_af <- dim(af_ysfa)
-  n_y <- d_af[1]; n_s <- d_af[2]; n_f <- d_af[3]; n_a <- d_af[4]
-  d_c <- dim(catch_ysf)
-  is <- which(d_c == n_s)[1]
-  iff <- which(d_c == n_f)[1]
-  iy  <- setdiff(1:3, c(is, iff))
-  af_years  <- dimnames(af_ysfa)[[1]]
-  c_years   <- dimnames(catch_ysf)[[iy]]
-  c_seasons <- dimnames(catch_ysf)[[is]]
-  c_fisheries <- dimnames(catch_ysf)[[iff]]
-  repaired <- vector("list", 0L)
-  for (f in seq_len(n_f)) {
-    # Match fishery name/character string
-    f_lbl <- if (!is.null(c_fisheries)) c_fisheries[f] else as.character(f)
-    for (s in seq_len(n_s)) {
-      s_lbl <- if (!is.null(c_seasons)) c_seasons[s] else as.character(s)
-      af_sum_y <- vapply(seq_len(n_y), function(yi) sum(af_ysfa[yi, s, f, ], na.rm = TRUE), numeric(1))
-      usable_y <- which(af_sum_y > eps)
-      for (y in seq_len(n_y)) {
-        y_lbl <- if (!is.null(af_years)) af_years[y] else as.character(y)
-        # Look up catch using name matching instead of relative index positioning
-        cval <- NA_real_
-        if (!is.null(c_years) && y_lbl %in% c_years) {
-          # Dynamic list indexing to handle any catch dimension order safely
-          idx <- vector("list", 3)
-          idx[[iy]] <- y_lbl; idx[[is]] <- s_lbl; idx[[iff]] <- f_lbl
-          cval <- do.call(`[`, c(list(catch_ysf), idx, list(drop = TRUE)))
-        } else if (is.null(c_years) && y <= d_c[iy]) {
-          # Fallback if arrays do not have dimnames
-          idx <- vector("list", 3)
-          idx[[iy]] <- y; idx[[is]] <- s; idx[[iff]] <- f
-          cval <- do.call(`[`, c(list(catch_ysf), idx, list(drop = TRUE)))
-        }
-        # Skip if there is no positive catch recorded for this calendar year
-        if (is.na(cval) || cval <= 0) {
-          next
-        }
-        asum <- af_sum_y[y]
-        # If there is positive catch but empty Age Frequencies, fix it
-        if (is.na(asum) || asum <= eps) {
-          lo <- max(1L, y - N); hi <- min(n_y, y + N)
-          cand <- setdiff(seq.int(lo, hi), y)
-          donors <- intersect(cand, usable_y)
-          if (length(donors) == 0L && expand_if_empty) donors <- setdiff(usable_y, y)
-          if (length(donors) == 0L) {
-            stop(sprintf("Cannot repair AF at Year %s (idx %d) s=%d f=%d: no donor years found.", y_lbl, y, s, f))
-          }
-          dist <- abs(donors - y); dist[dist == 0] <- 1e-9
-          w <- (1 / (dist^p)); w <- w / sum(w)
-          donor_mat <- vapply(donors, function(yy) af_ysfa[yy, s, f, ], numeric(n_a))
-          af_new <- as.numeric(donor_mat %*% w)
-          af_new[is.na(af_new)] <- 0
-          z <- sum(af_new)
-          if (z <= eps) stop(sprintf("Repair produced zero AF at Year %s s=%d f=%d.", y_lbl, s, f))
-          af_ysfa[y, s, f, ] <- af_new / z
-          af_sum_y[y] <- 1.0
-          repaired[[length(repaired) + 1L]] <- data.frame(
-            year = y_lbl, season = s, fishery = f, n_donors = length(donors)
-          )
-        }
-      }
-    }
-  }
-  repaired_df <- if (length(repaired)) do.call(rbind, repaired) else data.frame()
-  if (verbose && nrow(repaired_df) > 0) {
-    message(sprintf("Repaired %d year-season-fishery AF slice(s).", nrow(repaired_df)))
-  }
-  list(af_ysfa = af_ysfa, repaired = repaired_df, catch_dim_map = c(year = iy, season = is, fishery = iff))
-}
-
-check_sliced(data)
-obs_fix <- repair_af_slices_weighted(
-  catch_ysf = data$catch_obs_ysf,
-  af_ysfa   = data$af_sliced_ysfa,
-  N = 3, p = 1
-)
-data$af_sliced_ysfa <- obs_fix$af_ysfa
-check_sliced(data)
-
 # Parameters ----
 
 parameters <- get_parameters(data = data)
@@ -171,22 +82,22 @@ parameters$par_log_h <- log(0.72)
 parameters$par_log_psi <- log(1.75)
 # parameters$par_log_psi <- log(1.25)
 
-parameters$par_sel_rho_a[2] <- 0.5
-parameters$par_sel_rho_y[2] <- 0.7
+parameters$par_sel_rho_a[2] <- sel_rho_to_par(0.5)
+parameters$par_sel_rho_y[2] <- sel_rho_to_par(0.7)
 parameters$par_log_sel_sigma[2] <- log(0.5)
 
-parameters$par_sel_rho_a[5] <- 0.95
-parameters$par_sel_rho_y[5] <- 0.6
+parameters$par_sel_rho_a[5] <- sel_rho_to_par(0.95)
+parameters$par_sel_rho_y[5] <- sel_rho_to_par(0.6)
 parameters$par_log_sel_sigma[5] <- log(0.2)
 
-parameters$par_sel_rho_a[7] <- 0.99
-parameters$par_sel_rho_y[7] <- 0.99
+parameters$par_sel_rho_a[7] <- sel_rho_to_par(0.9)
+parameters$par_sel_rho_y[7] <- sel_rho_to_par(0.9)
 parameters$par_log_sel_sigma[7] <- log(0.1)
 
 tibble(
   fishery = c("LL1", "LL2", "LL3", "LL4", "Indonesia", "Australia", "CPUE"),
-  rho_a = parameters$par_sel_rho_a,
-  rho_y = parameters$par_sel_rho_y,
+  rho_a = sel_rho_from_par(parameters$par_sel_rho_a),
+  rho_y = sel_rho_from_par(parameters$par_sel_rho_y),
   sigma = exp(parameters$par_log_sel_sigma)
 )
 
@@ -202,8 +113,6 @@ obj <- MakeADFun(func = cmb(sbt_model, data), parameters = parameters, map = map
 bounds <- get_bounds(obj = obj, parameters = parameters)
 
 unique(names(obj$par))
-# obj$report()$lp_lf
-# obj$report()$lp_af
 obj$fn()
 
 # Optimise a single grid cell ----
@@ -220,39 +129,64 @@ check_estimability(obj = obj)
 # ce[[4]] %>% filter(Param_check != "OK"
 obj$env$last.par.best[1:13]
 exp(obj$env$last.par.best[1:13])
-plot_cpue_lf(data = data, object = obj)
+plot_selectivity(data = data, object = obj, years = 1:2021, fisheries = "Indonesian")
 p1 <- plot_selectivity(data = data, object = obj, years = 1:3000, fisheries = "LL1")
 p2 <- plot_selectivity(data = data, object = obj, years = 1:3000, fisheries = "CPUE")
 p1 + p2
 
+plot_cpue_residuals(data, obj)
+plot_gt_residuals(data, obj)
+plot_hsp_residuals(data, obj)
+plot_pop_residuals(data, obj)
+plot_tag_residuals(data, obj)
+plot_troll_residuals(data, obj)
+plot_aerial_residuals(data, obj)
+
+plot_af_residuals(data, obj, fishery = "Indonesian")
+plot_af_residuals(data, obj, fishery = "Australian")
+plot_lf_residuals(data, obj, fishery = "LL1")
+plot_lf_residuals(data, obj, fishery = "LL2")
+plot_lf_residuals(data, obj, fishery = "LL3")
+plot_lf_residuals(data, obj, fishery = "LL4")
+plot_lf_residuals(data, obj, fishery = "CPUE")
+
+plot_lf(data, obj, fishery = "LL3")
+plot_lf(data, obj, fishery = "CPUE")
+plot_lf(data = data, object = obj, fishery = "CPUE")
+
+estimated_parameters <- make_parameter_table(obj = obj, data = data)
+print(estimated_parameters, n = Inf)
+
 # Profiling psi ----
 
-map_psi <- map
-map_psi$par_log_psi <- NULL
-par_psi <- obj$env$parList(obj$env$last.par.best)
-obj_psi <- MakeADFun(func = cmb(sbt_model, data), parameters = par_psi, map = map_psi)
-prof_psi1 <- sbtprofile(obj = obj_psi, name = "par_log_psi")
-plot_profile(obj = obj_psi, x = prof_psi1, xlab = "Psi")
-prof_psi2 <- TMB::tmbprofile(obj_psi1, name = "par_log_psi", parm.range = c(-0.15, -0.1))
+# map_psi <- map
+# map_psi$par_log_psi <- NULL
+# par_psi <- obj$env$parList(obj$env$last.par.best)
+# obj_psi <- MakeADFun(func = cmb(sbt_model, data), parameters = par_psi, map = map_psi)
+# prof_psi1 <- sbtprofile(obj = obj_psi, name = "par_log_psi")
+# plot_profile(obj = obj_psi, x = prof_psi1, xlab = "Psi")
+# prof_psi2 <- TMB::tmbprofile(obj_psi, name = "par_log_psi", parm.range = c(0, 0.7))
+# prof_psi2$par_log_psi <- exp(prof_psi2$par_log_psi)
+# plot(prof_psi2)
 
 # Try turning on random effects ----
 
 map2 <- map
-# map2$par_sel_rho_y <- factor(c(NA, NA, NA, NA, 1, NA, NA))
-# map2$par_sel_rho_a <- factor(c(NA, NA, NA, NA, 1, NA, NA))
-# map2$par_log_sel_sigma <- factor(c(NA, NA, NA, NA, 1, NA, NA))
-map2$par_sel_rho_y <- factor(c(1, NA, NA, NA, NA, NA, NA))
-map2$par_sel_rho_a <- factor(c(1, NA, NA, NA, NA, NA, NA))
-map2$par_log_sel_sigma <- factor(c(1, NA, NA, NA, NA, NA, NA))
+map2$par_sel_rho_y <- factor(c(NA, NA, NA, NA, 1, NA, NA))
+map2$par_sel_rho_a <- factor(c(NA, NA, NA, NA, 1, NA, NA))
+map2$par_log_sel_sigma <- factor(c(NA, NA, NA, NA, 1, NA, NA))
+# map2$par_sel_rho_y <- factor(c(1, NA, NA, NA, NA, NA, NA))
+# map2$par_sel_rho_a <- factor(c(1, NA, NA, NA, NA, NA, NA))
+# map2$par_log_sel_sigma <- factor(c(1, NA, NA, NA, NA, NA, NA))
 parameters2 <- obj$env$parList(obj$env$last.par.best)
-parameters2$par_sel_rho_y[5] <- 0.9561889
-parameters2$par_sel_rho_a[5] <- 0.9999999
-parameters2$par_log_sel_sigma[5] <- -1.7565783
+# parameters2$par_sel_rho_y[5] <- sel_rho_to_par(0.9561889)
+# parameters2$par_sel_rho_a[5] <- sel_rho_to_par(0.9999999)
+# parameters2$par_log_sel_sigma[5] <- -1.7565783
 
 tibble(
   fishery = c("LL1", "LL2", "LL3", "LL4", "Indonesia", "Australia", "CPUE"),
-  rho_a = parameters2$par_sel_rho_a,
-  rho_y = parameters2$par_sel_rho_y,
+  rho_a = sel_rho_from_par(parameters2$par_sel_rho_a),
+  rho_y = sel_rho_from_par(parameters2$par_sel_rho_y),
   sigma = exp(parameters2$par_log_sel_sigma)
 )
 
@@ -265,7 +199,7 @@ opt2 <- nlminb(start = opt2$par, objective = obj2$fn, gradient = obj2$gr,
                lower = bounds2$lower, upper = bounds2$upper, control = control)
 opt2$par[7:9]
 
-plot_cpue_lf(data = data, object = obj2)
+plot_lf(data = data, object = obj2, fishery = "CPUE")
 plot_selectivity(data = data, object = obj2, years = 1:3000, fisheries = "CPUE")
 plot_selectivity(data = data, object = obj2, years = 1:3000, fisheries = "Indonesian")
 plot_selectivity(data = data, object = obj2, years = 1:3000, fisheries = "LL1")
@@ -280,13 +214,14 @@ plot_selectivity(data = data, object = obj, years = 1:3000, fisheries = "LL2")
 plot_selectivity(data = data, object = obj, years = 1:3000, fisheries = "LL3")
 # plot_selectivity(data = data, object = obj, years = 1:3000, fisheries = "LL4")
 plot_selectivity(data = data, object = obj, years = 1:3000, fisheries = "Indonesian")
-plot_selectivity(data = data, object = obj, years = 1:3000, fisheries = "Australian")
+plot_selectivity(data = data, object = obj, years = 1960:3000, fisheries = "Australian")
 
 plot_cpue_residuals(data, obj)
 plot_gt_residuals(data, obj)
 plot_hsp_residuals(data, obj)
 plot_pop_residuals(data, obj)
-# plot_tag_residuals
+plot_tag_residuals(data, obj)
+
 plot_hsps(data, obj)
 
 p1 <- plot_hsps(data, obj1)
@@ -312,7 +247,7 @@ plot_cpue_residuals(data = data, obj = obj, type = "OSA")
 
 plot_aerial_survey(data = data, object = obj, nsim = 1)
 
-plot_cpue_lf(data = data, object = obj)
+plot_lf(data = data, object = obj, fishery = "CPUE")
 
 plot_af(data = data, object = obj2, fishery = "Indonesian")
 plot_selectivity(data = data, object = obj, years = 2013:2026, fisheries = "Indonesian")
@@ -561,4 +496,3 @@ grid_mcmc_to_tmbfit <- function(data, parameters, grid, grid_parameters, grid_ce
 #   N = 3, p = 1
 # )
 # proj_af_sliced_ysfa <- proj_fix$af_ysfa
-

@@ -48,21 +48,27 @@ sbt_model_oldsel <- function(parameters, data) {
   # par_log_sel_fya <- list(par_log_sel_1, par_log_sel_2, par_log_sel_3, par_log_sel_4, par_log_sel_5, par_log_sel_6, par_log_sel_7)
   # lp_sel <- get_selectivity_prior(par_sel_rho_y, par_sel_rho_a, par_log_sel_sigma, par_log_sel_fya)
   # sel_fya <- get_selectivity(n_age, max_age, first_yr, first_yr_catch, sel_min_age_f, sel_max_age_f, sel_end_f, sel_change_year_fy, par_log_sel_fya)
+  sel_min_age_f <- sel_min_age_f[1:6]
+  sel_max_age_f <- sel_max_age_f[1:6]
+  sel_end_f <- sel_end_f[1:6]
+  sel_change_year_fy <- sel_change_year_fy[1:6, , drop = FALSE]
+  sel_change_sd_fy <- sel_change_sd_fy[1:6, , drop = FALSE]
+  sel_smooth_sd_f <- sel_smooth_sd_f[1:6]
+  first_yr_catch_f <- first_yr_catch_f[1:6]
+  
   sel_fya <- get_selectivity_v1(n_age, max_age, first_yr, first_yr_catch, 
-                                sel_min_age_f[1:6], 
-                                sel_max_age_f[1:6], 
-                                sel_end_f[1:6], 
-                                sel_change_year_fy[1:6,], par_sels_init_i, par_sels_change_i)
+                                sel_min_age_f, sel_max_age_f, sel_end_f, 
+                                sel_change_year_fy, par_sels_init_i, par_sels_change_i)
   
   lp_sel <- get_sel_like_v1(first_yr, first_yr_catch_f, 
-                            sel_min_age_f = sel_min_age_f[1:6], 
-                            sel_max_age_f = sel_max_age_f[1:6], 
-                            sel_change_year_fy[1:6, ], 
-                            sel_change_sd_fy[1:6, ], 
+                            sel_min_age_f = sel_min_age_f, 
+                            sel_max_age_f = sel_max_age_f, 
+                            sel_change_year_fy, 
+                            sel_change_sd_fy, 
                             sel_smooth_sd_f, 
                             par_sels_init_i, 
                             par_sels_change_i, 
-                            sel_fya = sel_fya[1:6,,])
+                            sel_fya = sel_fya)
   
   new_fya <- array(NA, dim = c(7, 92, 31))
   new_fya[1:6,,] <- sel_fya

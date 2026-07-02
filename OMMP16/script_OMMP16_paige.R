@@ -112,7 +112,7 @@ plot_cpue_residuals(data = data, obj = obj, type = "OSA")
 
 plot_aerial_survey(data = data, object = obj, nsim = 10)
 
-plot_cpue_lf(data = data, object = obj)
+plot_lf(data = data, object = obj, fishery = "CPUE")
 plot_af(data = data, object = obj, fishery = "Indonesian")
 plot_af(data = data, object = obj, fishery = "Australian")
 plot_lf(data = data, object = obj, fishery = "LL1")

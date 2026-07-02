@@ -30,7 +30,7 @@ plot_lf(data = data, object = obj, fishery = "LL1")
 plot_lf(data = data, object = obj, fishery = "LL2")
 #plot_lf(data = data, object = obj, fishery = "LL3")
 #plot_lf(data = data, object = obj, fishery = "LL4")
-plot_cpue_lf(data = data, object = obj)
+plot_lf(data = data, object = obj, fishery = "CPUE")
 
 p1 <- plot_selectivity(data = data, object = obj, years = 1969:2025, fisheries = "LL1")
 p2 <- plot_selectivity(data = data, object = obj, years = 1969:2025, fisheries = "CPUE")

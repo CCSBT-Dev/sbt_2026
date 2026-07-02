@@ -67,7 +67,8 @@ data <- list(
   tag_switch = 1, tag_var_factor = 1.82
 )
 
-data <- get_data(data_in = data)
+data_in <- data
+data <- get_data(data_in = data_in)
 
 plot(seq(87.5, 184, 4), data$cpue_lfs[57,], type = "b")
 lines(as.numeric(names(length_freq)[4:113]), length_freq[270, 4:113], col = 2, type = "b")
@@ -125,6 +126,7 @@ opt <- nlminb(start = opt$par, objective = obj$fn, gradient = obj$gr, hessian = 
               lower = bounds$lower, upper = bounds$upper, control = control)
 
 check_estimability(obj = obj)
+TMBhelper::check_estimability(obj = obj)
 # ce <- check_estimability(obj = obj)
 # ce[[4]] %>% filter(Param_check != "OK"
 obj$env$last.par.best[1:13]
@@ -157,6 +159,84 @@ plot_lf(data = data, object = obj, fishery = "CPUE")
 estimated_parameters <- make_parameter_table(obj = obj, data = data)
 print(estimated_parameters, n = Inf)
 
+# Sensitivity 1: change q from 2008 ----
+
+seed_sensitivity_parameters <- function(parameters_sens, reference_obj) {
+  reference_parameters <- reference_obj$env$parList(reference_obj$env$last.par.best)
+  for (name in intersect(names(parameters_sens), names(reference_parameters))) {
+    fitted <- as.numeric(reference_parameters[[name]])
+    if (length(fitted) == 1L && length(parameters_sens[[name]]) > 1L) {
+      parameters_sens[[name]][] <- fitted
+    } else {
+      n <- min(length(parameters_sens[[name]]), length(fitted))
+      parameters_sens[[name]][seq_len(n)] <- fitted[seq_len(n)]
+    }
+  }
+  parameters_sens
+}
+
+fit_sensitivity <- function(data_sens, label, reference_obj = obj) {
+  parameters_sens <- get_parameters(data = data_sens)
+  parameters_sens <- seed_sensitivity_parameters(parameters_sens, reference_obj)
+  map_sens <- get_map(parameters = parameters_sens)
+  map_sens$par_log_m0 <- NULL
+  map_sens$par_log_m10 <- NULL
+  data_sens$priors <- get_priors(parameters = parameters_sens)
+  obj_sens <- MakeADFun(func = cmb(sbt_model, data_sens), parameters = parameters_sens, map = map_sens)
+  bounds_sens <- get_bounds(obj = obj_sens, parameters = parameters_sens)
+  opt_sens <- nlminb(
+    start = obj_sens$par, objective = obj_sens$fn, gradient = obj_sens$gr, hessian = obj_sens$he,
+    lower = bounds_sens$lower, upper = bounds_sens$upper, control = control
+  )
+  opt_sens <- nlminb(
+    start = opt_sens$par, objective = obj_sens$fn, gradient = obj_sens$gr, hessian = obj_sens$he,
+    lower = bounds_sens$lower, upper = bounds_sens$upper, control = control
+  )
+  obj_sens$fn(opt_sens$par)
+  gr_sens <- obj_sens$gr(opt_sens$par)
+  message(
+    label, ": convergence = ", opt_sens$convergence,
+    " (", opt_sens$message, ")",
+    ", objective = ", signif(opt_sens$objective, 10),
+    ", max |gradient| = ", signif(max(abs(gr_sens)), 5),
+    ", max positive gradient = ", signif(max(gr_sens), 5)
+  )
+  list(data = data_sens, parameters = parameters_sens, map = map_sens,
+       obj = obj_sens, bounds = bounds_sens, opt = opt_sens)
+}
+
+data_q2008_in <- data_in
+data_q2008_in$cpue_q_yrs <- c(2008)
+data_q2008 <- get_data(data_in = data_q2008_in)
+sens_q2008 <- fit_sensitivity(data_sens = data_q2008, label = "Sensitivity 1: CPUE q split from 2008")
+data_q2008 <- sens_q2008$data
+parameters_q2008 <- sens_q2008$parameters
+map_q2008 <- sens_q2008$map
+obj_q2008 <- sens_q2008$obj
+bounds_q2008 <- sens_q2008$bounds
+opt_q2008 <- sens_q2008$opt
+
+# Sensitivity 2: time varying CPUE CV ----
+
+get_data_with_cpue <- function(data_in, cpue_sens) {
+  cpue_base <- cpue
+  on.exit(cpue <<- cpue_base, add = TRUE)
+  cpue <<- cpue_sens
+  get_data(data_in = data_in)
+}
+
+cpue_tv_cv <- cpue %>% mutate(CV = seq(0.30, 0.18, length.out = n()))
+data_cpue_tv_cv <- get_data_with_cpue(data_in = data_in, cpue_sens = cpue_tv_cv)
+sens_cpue_tv_cv <- fit_sensitivity(data_sens = data_cpue_tv_cv, label = "Sensitivity 2: time-varying CPUE CV")
+data_cpue_tv_cv <- sens_cpue_tv_cv$data
+parameters_cpue_tv_cv <- sens_cpue_tv_cv$parameters
+map_cpue_tv_cv <- sens_cpue_tv_cv$map
+obj_cpue_tv_cv <- sens_cpue_tv_cv$obj
+bounds_cpue_tv_cv <- sens_cpue_tv_cv$bounds
+opt_cpue_tv_cv <- sens_cpue_tv_cv$opt
+
+plot_biomass_spawning(data_list = list(data, data_q2008, data_cpue_tv_cv), object_list = list(obj, obj_q2008, obj_cpue_tv_cv))
+
 # Profiling psi ----
 
 # map_psi <- map
@@ -179,9 +259,9 @@ map2$par_log_sel_sigma <- factor(c(NA, NA, NA, NA, 1, NA, NA))
 # map2$par_sel_rho_a <- factor(c(1, NA, NA, NA, NA, NA, NA))
 # map2$par_log_sel_sigma <- factor(c(1, NA, NA, NA, NA, NA, NA))
 parameters2 <- obj$env$parList(obj$env$last.par.best)
-# parameters2$par_sel_rho_y[5] <- sel_rho_to_par(0.9561889)
-# parameters2$par_sel_rho_a[5] <- sel_rho_to_par(0.9999999)
-# parameters2$par_log_sel_sigma[5] <- -1.7565783
+# parameters2$par_sel_rho_y[5] <- sel_rho_to_par(0.95)
+# parameters2$par_sel_rho_a[5] <- sel_rho_to_par(0.95)
+# parameters2$par_log_sel_sigma[5] <- log(0.15)
 
 tibble(
   fishery = c("LL1", "LL2", "LL3", "LL4", "Indonesia", "Australia", "CPUE"),
@@ -190,8 +270,7 @@ tibble(
   sigma = exp(parameters2$par_log_sel_sigma)
 )
 
-obj2 <- MakeADFun(func = cmb(sbt_model, data), parameters = parameters2, map = map2, 
-                  random = c("par_log_sel_1"))
+obj2 <- MakeADFun(func = cmb(sbt_model, data), parameters = parameters2, map = map2, random = c("par_log_sel_5"))
 bounds2 <- get_bounds(obj = obj2, parameters = parameters2)
 opt2 <- nlminb(start = obj2$par, objective = obj2$fn, gradient = obj2$gr,
                lower = bounds2$lower, upper = bounds2$upper, control = control)
